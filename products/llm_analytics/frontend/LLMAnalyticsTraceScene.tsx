@@ -64,6 +64,7 @@ import { EventContentDisplayAsync, EventContentGeneration } from './components/E
 import { FeedbackTag } from './components/FeedbackTag'
 import { MetricTag } from './components/MetricTag'
 import { SentimentBar } from './components/SentimentTag'
+import { TagsTabContent } from './components/TagsTabContent'
 import {
     ConversationDisplayOption,
     ConversationMessagesDisplay,
@@ -1460,6 +1461,7 @@ const EventContent = React.memo(
         const showSaveToDatasetButton = featureFlags[FEATURE_FLAGS.LLM_ANALYTICS_DATASETS]
 
         const showEvalsTab = isGenerationEvent && featureFlags[FEATURE_FLAGS.LLM_ANALYTICS_EVALUATIONS]
+        const showTagsTab = isGenerationEvent && featureFlags[FEATURE_FLAGS.LLM_ANALYTICS_TAGS]
 
         const showSummaryTab =
             featureFlags[FEATURE_FLAGS.LLM_ANALYTICS_SUMMARIZATION] ||
@@ -1763,6 +1765,16 @@ const EventContent = React.memo(
                                                       distinctId={trace.distinctId}
                                                   />
                                               ),
+                                          },
+                                      ]
+                                    : []),
+                                ...(showTagsTab
+                                    ? [
+                                          {
+                                              key: TraceViewMode.Tags,
+                                              label: 'Tags',
+                                              'data-attr': 'llma-trace-tags-tab',
+                                              content: <TagsTabContent generationEventId={event.id} />,
                                           },
                                       ]
                                     : []),
