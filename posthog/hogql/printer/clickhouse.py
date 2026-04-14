@@ -441,6 +441,63 @@ class ClickHousePrinter(BasePrinter):
 
         return self.visit(node.type)
 
+    def visit_field_type(self, type: ast.FieldType):
+        field_sql = super().visit_field_type(type)
+        return self._maybe_apply_json_drop_keys(type, field_sql)
+
+    def _maybe_apply_json_drop_keys(self, type: ast.FieldType, field_sql: str) -> str:
+        """
+        Wraps a StringJSONDatabaseField in JSONDropKeys() to strip restricted property keys
+        when the raw JSON blob is selected directly (e.g., `SELECT properties FROM events`).
+        """
+        if not self.context.restricted_properties:
+            return field_sql
+
+        from posthog.hogql.database.models import StringJSONDatabaseField
+
+        resolved_field = type.resolve_database_field(self.context)
+        if not isinstance(resolved_field, StringJSONDatabaseField):
+            return field_sql
+
+        if type.name != "properties":
+            return field_sql
+
+        keys_to_drop = self._get_restricted_keys_for_table_type(type.table_type)
+        if not keys_to_drop:
+            return field_sql
+
+        escaped_keys = ", ".join(escape_clickhouse_string(k) for k in sorted(keys_to_drop))
+        return f"JSONDropKeys([{escaped_keys}])({field_sql})"
+
+    def _get_restricted_keys_for_table_type(self, table_type: ast.Type) -> set[str]:
+        """
+        Given a table type, returns the set of property names that should be stripped
+        from the JSON blob based on restricted_properties in the context.
+        """
+        from products.event_definitions.backend.models.property_definition import PropertyDefinition
+
+        prop_def_type: int | None = None
+
+        if isinstance(table_type, ast.BaseTableType):
+            try:
+                table = table_type.resolve_database_table(self.context)
+                table_name = table.to_printed_hogql()
+            except Exception:
+                return set()
+
+            if table_name == "events":
+                if isinstance(table_type, ast.VirtualTableType) and table_type.field == "poe":
+                    prop_def_type = PropertyDefinition.Type.PERSON
+                else:
+                    prop_def_type = PropertyDefinition.Type.EVENT
+            elif table_name in ("persons", "raw_persons"):
+                prop_def_type = PropertyDefinition.Type.PERSON
+
+        if prop_def_type is None:
+            return set()
+
+        return {name for name, ptype in self.context.restricted_properties if ptype == prop_def_type}
+
     def _get_property_group_source_for_field(
         self, field_type: ast.FieldType, property_name: str
     ) -> PrintableMaterializedPropertyGroupItem | None:
