@@ -159,6 +159,7 @@ rules:
                               |PluginConfig
                               |ProductTour
                               |ProjectSecretAPIKey
+                              |PropertyAccessControl
                               |QueryTabState
                               |QuickFilter
                               |QuickFilterContext
@@ -356,6 +357,7 @@ rules:
                         |PluginConfig
                         |ProductTour
                         |ProjectSecretAPIKey
+                        |PropertyAccessControl
                         |QueryTabState
                         |QuickFilter
                         |QuickFilterContext
