@@ -5,6 +5,7 @@ from posthog.hogql.errors import ResolutionError
 from posthog.hogql.parser import parse_select
 from posthog.hogql.printer import prepare_and_print_ast
 
+from posthog.constants import AvailableFeature
 from posthog.models import PropertyDefinition
 
 from products.access_control.backend.models.property_access_control import PropertyAccessControl
@@ -16,6 +17,11 @@ class TestRestrictPropertiesInHogQL(BaseTest):
 
     def setUp(self):
         super().setUp()
+        # Query-time enforcement requires the ACCESS_CONTROL entitlement.
+        self.organization.available_product_features = [
+            {"name": AvailableFeature.ACCESS_CONTROL, "key": AvailableFeature.ACCESS_CONTROL}
+        ]
+        self.organization.save()
         self.event_prop = PropertyDefinition.objects.create(
             team=self.team,
             name="secret_field",
