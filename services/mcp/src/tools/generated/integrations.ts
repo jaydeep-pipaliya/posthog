@@ -25,16 +25,16 @@ const integrationDelete = (): ToolBase<typeof IntegrationDeleteSchema, unknown> 
     },
 })
 
-const IntegrationGetSchema = IntegrationsRetrieveParams.omit({ project_id: true })
+const IntegrationGetSchema = IntegrationsRetrieveParams.omit({ organization_id: true })
 
-const integrationGet = (): ToolBase<typeof IntegrationGetSchema, Schemas.IntegrationConfig> => ({
+const integrationGet = (): ToolBase<typeof IntegrationGetSchema, Schemas.OrganizationIntegration> => ({
     name: 'integration-get',
     schema: IntegrationGetSchema,
     handler: async (context: Context, params: z.infer<typeof IntegrationGetSchema>) => {
-        const projectId = await context.stateManager.getProjectId()
-        const result = await context.api.request<Schemas.IntegrationConfig>({
+        const orgId = await context.stateManager.getOrgID()
+        const result = await context.api.request<Schemas.OrganizationIntegration>({
             method: 'GET',
-            path: `/api/projects/${encodeURIComponent(String(projectId))}/integrations/${encodeURIComponent(String(params.id))}/`,
+            path: `/api/organizations/${encodeURIComponent(String(orgId))}/integrations/${encodeURIComponent(String(params.id))}/`,
         })
         return result
     },
@@ -44,15 +44,15 @@ const IntegrationsListSchema = IntegrationsListQueryParams
 
 const integrationsList = (): ToolBase<
     typeof IntegrationsListSchema,
-    WithPostHogUrl<Schemas.PaginatedIntegrationConfigList>
+    WithPostHogUrl<Schemas.PaginatedOrganizationIntegrationList>
 > => ({
     name: 'integrations-list',
     schema: IntegrationsListSchema,
     handler: async (context: Context, params: z.infer<typeof IntegrationsListSchema>) => {
-        const projectId = await context.stateManager.getProjectId()
-        const result = await context.api.request<Schemas.PaginatedIntegrationConfigList>({
+        const orgId = await context.stateManager.getOrgID()
+        const result = await context.api.request<Schemas.PaginatedOrganizationIntegrationList>({
             method: 'GET',
-            path: `/api/projects/${encodeURIComponent(String(projectId))}/integrations/`,
+            path: `/api/organizations/${encodeURIComponent(String(orgId))}/integrations/`,
             query: {
                 limit: params.limit,
                 offset: params.offset,

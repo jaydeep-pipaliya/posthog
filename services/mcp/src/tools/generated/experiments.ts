@@ -21,8 +21,6 @@ import {
     ExperimentsShipVariantCreateBody,
     ExperimentsShipVariantCreateParams,
     ExperimentsTimeseriesResultsRetrieveParams,
-    ExperimentsTimeseriesResultsRetrieveQueryParams,
-    ExperimentsUnarchiveCreateParams,
 } from '@/generated/experiments/api'
 import { withUiApp } from '@/resources/ui-apps'
 import { withPostHogUrl, pickResponseFields, type WithPostHogUrl } from '@/tools/tool-utils'
@@ -416,9 +414,7 @@ const experimentStats = (): ToolBase<typeof ExperimentStatsSchema, unknown> => (
     },
 })
 
-const ExperimentTimeseriesResultsSchema = ExperimentsTimeseriesResultsRetrieveParams.omit({ project_id: true }).extend(
-    ExperimentsTimeseriesResultsRetrieveQueryParams.shape
-)
+const ExperimentTimeseriesResultsSchema = ExperimentsTimeseriesResultsRetrieveParams.omit({ project_id: true })
 
 const experimentTimeseriesResults = (): ToolBase<typeof ExperimentTimeseriesResultsSchema, unknown> =>
     withUiApp('experiment-results', {
@@ -429,28 +425,8 @@ const experimentTimeseriesResults = (): ToolBase<typeof ExperimentTimeseriesResu
             const result = await context.api.request<unknown>({
                 method: 'GET',
                 path: `/api/projects/${encodeURIComponent(String(projectId))}/experiments/${encodeURIComponent(String(params.id))}/timeseries_results/`,
-                query: {
-                    fingerprint: params.fingerprint,
-                    metric_uuid: params.metric_uuid,
-                },
             })
             return result
-        },
-    })
-
-const ExperimentUnarchiveSchema = ExperimentsUnarchiveCreateParams.omit({ project_id: true })
-
-const experimentUnarchive = (): ToolBase<typeof ExperimentUnarchiveSchema, WithPostHogUrl<Schemas.Experiment>> =>
-    withUiApp('experiment', {
-        name: 'experiment-unarchive',
-        schema: ExperimentUnarchiveSchema,
-        handler: async (context: Context, params: z.infer<typeof ExperimentUnarchiveSchema>) => {
-            const projectId = await context.stateManager.getProjectId()
-            const result = await context.api.request<Schemas.Experiment>({
-                method: 'POST',
-                path: `/api/projects/${encodeURIComponent(String(projectId))}/experiments/${encodeURIComponent(String(params.id))}/unarchive/`,
-            })
-            return await withPostHogUrl(context, result, `/experiments/${result.id}`)
         },
     })
 
@@ -540,6 +516,5 @@ export const GENERATED_TOOLS: Record<string, () => ToolBase<ZodObjectAny>> = {
     'experiment-ship-variant': experimentShipVariant,
     'experiment-stats': experimentStats,
     'experiment-timeseries-results': experimentTimeseriesResults,
-    'experiment-unarchive': experimentUnarchive,
     'experiment-update': experimentUpdate,
 }

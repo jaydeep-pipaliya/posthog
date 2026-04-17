@@ -14,14 +14,13 @@ import {
     CommentsThreadRetrieveParams,
     ListQueryParams,
     MembersListQueryParams,
+    PropertyAccessControlsCreateBody,
+    PropertyAccessControlsListQueryParams,
     RetrieveParams,
     RolesListQueryParams,
     RolesRetrieveParams,
     RolesRoleMembershipsListParams,
     RolesRoleMembershipsListQueryParams,
-    UserHomeSettingsPartialUpdateBody,
-    UserHomeSettingsPartialUpdateParams,
-    UserHomeSettingsRetrieveParams,
 } from '@/generated/platform_features/api'
 import { withPostHogUrl, pickResponseFields, type WithPostHogUrl } from '@/tools/tool-utils'
 import type { Context, ToolBase, ZodObjectAny } from '@/tools/types'
@@ -302,7 +301,6 @@ const orgMembersList = (): ToolBase<typeof OrgMembersListSchema, Schemas.Paginat
             query: {
                 limit: params.limit,
                 offset: params.offset,
-                order: params.order,
             },
         })
         return result
@@ -425,46 +423,55 @@ const rolesList = (): ToolBase<typeof RolesListSchema, Schemas.PaginatedRoleList
     },
 })
 
-const UserHomeSettingsGetSchema = UserHomeSettingsRetrieveParams.extend({
-    uuid: UserHomeSettingsRetrieveParams.shape['uuid'].describe(
-        'User UUID, or `@me` to target the authenticated user.'
-    ),
-})
+const PropertyAccessControlsListSchema = PropertyAccessControlsListQueryParams
 
-const userHomeSettingsGet = (): ToolBase<typeof UserHomeSettingsGetSchema, Schemas.PinnedSceneTabs> => ({
-    name: 'user-home-settings-get',
-    schema: UserHomeSettingsGetSchema,
-    handler: async (context: Context, params: z.infer<typeof UserHomeSettingsGetSchema>) => {
-        const result = await context.api.request<Schemas.PinnedSceneTabs>({
+const propertyAccessControlsList = (): ToolBase<
+    typeof PropertyAccessControlsListSchema,
+    Schemas.PaginatedPropertyAccessControlStateList
+> => ({
+    name: 'property-access-controls-list',
+    schema: PropertyAccessControlsListSchema,
+    handler: async (context: Context, params: z.infer<typeof PropertyAccessControlsListSchema>) => {
+        const projectId = await context.stateManager.getProjectId()
+        const result = await context.api.request<Schemas.PaginatedPropertyAccessControlStateList>({
             method: 'GET',
-            path: `/api/user_home_settings/${encodeURIComponent(String(params.uuid))}/`,
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/property_access_controls/`,
+            query: {
+                limit: params.limit,
+                offset: params.offset,
+                property_definition_id: params.property_definition_id,
+            },
         })
         return result
     },
 })
 
-const UserHomeSettingsUpdateSchema = UserHomeSettingsPartialUpdateParams.extend(
-    UserHomeSettingsPartialUpdateBody.shape
-).extend({
-    uuid: UserHomeSettingsPartialUpdateParams.shape['uuid'].describe(
-        'User UUID, or `@me` to target the authenticated user.'
-    ),
-})
+const PropertyAccessControlsCreateSchema = PropertyAccessControlsCreateBody
 
-const userHomeSettingsUpdate = (): ToolBase<typeof UserHomeSettingsUpdateSchema, Schemas.PinnedSceneTabs> => ({
-    name: 'user-home-settings-update',
-    schema: UserHomeSettingsUpdateSchema,
-    handler: async (context: Context, params: z.infer<typeof UserHomeSettingsUpdateSchema>) => {
+const propertyAccessControlsCreate = (): ToolBase<
+    typeof PropertyAccessControlsCreateSchema,
+    Schemas.PropertyAccessControlRule
+> => ({
+    name: 'property-access-controls-create',
+    schema: PropertyAccessControlsCreateSchema,
+    handler: async (context: Context, params: z.infer<typeof PropertyAccessControlsCreateSchema>) => {
+        const projectId = await context.stateManager.getProjectId()
         const body: Record<string, unknown> = {}
-        if (params.tabs !== undefined) {
-            body['tabs'] = params.tabs
+        if (params.property_definition_id !== undefined) {
+            body['property_definition_id'] = params.property_definition_id
         }
-        if (params.homepage !== undefined) {
-            body['homepage'] = params.homepage
+        if (params.access_level !== undefined) {
+            body['access_level'] = params.access_level
         }
-        const result = await context.api.request<Schemas.PinnedSceneTabs>({
-            method: 'PATCH',
-            path: `/api/user_home_settings/${encodeURIComponent(String(params.uuid))}/`,
+        if (params.organization_member !== undefined) {
+            body['organization_member'] = params.organization_member
+        }
+        if (params.role !== undefined) {
+            body['role'] = params.role
+        }
+        const result = await context.api.request<Schemas.PropertyAccessControlRule>({
+            method: 'POST',
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/property_access_controls/`,
             body,
         })
         return result
@@ -489,6 +496,6 @@ export const GENERATED_TOOLS: Record<string, () => ToolBase<ZodObjectAny>> = {
     'role-get': roleGet,
     'role-members-list': roleMembersList,
     'roles-list': rolesList,
-    'user-home-settings-get': userHomeSettingsGet,
-    'user-home-settings-update': userHomeSettingsUpdate,
+    'property-access-controls-list': propertyAccessControlsList,
+    'property-access-controls-create': propertyAccessControlsCreate,
 }
