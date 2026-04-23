@@ -14,6 +14,7 @@ import { LemonTag, LemonTagType } from 'lib/lemon-ui/LemonTag'
 import { Tooltip } from 'lib/lemon-ui/Tooltip'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
 import { humanFriendlyDetailedTime, humanFriendlyDuration, humanFriendlyNumber } from 'lib/utils'
+import { getAccessControlDisabledReason } from 'lib/utils/accessControlUtils'
 import { dataWarehouseViewsLogic } from 'scenes/data-warehouse/saved_queries/dataWarehouseViewsLogic'
 import { LogsViewer } from 'scenes/hog-functions/logs/LogsViewer'
 import { teamLogic } from 'scenes/teamLogic'
@@ -229,7 +230,14 @@ export function QueryInfo({ tabId, view }: QueryInfoProps): JSX.Element {
                                     {!isDagSchedulesOnly && (
                                         <LemonSelect
                                             className="h-9"
-                                            disabledReason={sync}
+                                            disabledReason={
+                                                sync ||
+                                                getAccessControlDisabledReason(
+                                                    AccessControlResourceType.WarehouseObjects,
+                                                    AccessControlLevel.Editor,
+                                                    savedQuery?.user_access_level
+                                                )
+                                            }
                                             value={
                                                 targetView
                                                     ? dataWarehouseSavedQueryMapById[targetView.id]?.sync_frequency ||
