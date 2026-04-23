@@ -285,6 +285,8 @@ export enum AccessControlResourceType {
     Experiment = 'experiment',
     ExperimentSavedMetric = 'experiment_saved_metric',
     ExternalDataSource = 'external_data_source',
+    WarehouseObjects = 'warehouse_objects',
+    WarehouseTable = 'warehouse_table',
     WebAnalytics = 'web_analytics',
     ActivityLog = 'activity_log',
     ErrorTracking = 'error_tracking',
@@ -2364,7 +2366,6 @@ export interface EndpointType extends WithAccessControl {
     cache_age_seconds: number | null
     is_materialized: boolean
     current_version: number
-    current_version_id: string
     versions_count: number
     /** Purely local value to determine whether the query endpoint should be highlighted, e.g. as a fresh duplicate. */
     _highlight?: boolean
@@ -2391,7 +2392,6 @@ export interface EndpointVersionMaterializationType {
     error?: string
     last_materialized_at?: string
     sync_frequency?: DataModelingSyncInterval
-    saved_query_id?: string
 }
 
 export interface DashboardBasicType extends WithAccessControl {
@@ -5291,6 +5291,7 @@ export type APIScopeObject =
     | 'uploaded_media'
     | 'user'
     | 'visual_review'
+    | 'warehouse_objects'
     | 'warehouse_table'
     | 'warehouse_view'
     | 'web_analytics'
@@ -5517,6 +5518,7 @@ export interface DataWarehouseTable {
     external_data_source?: ExternalDataSource
     external_schema?: SimpleExternalDataSourceSchema
     options?: { csv_allow_double_quotes?: boolean | null }
+    user_access_level?: AccessControlLevel
 }
 
 export type DataWarehouseTableTypes = 'CSV' | 'Parquet' | 'JSON' | 'CSVWithNames'
@@ -5605,6 +5607,7 @@ export interface DataWarehouseSavedQuery {
     origin?: DataWarehouseSavedQueryOrigin
     is_test?: boolean
     expires_at?: string
+    user_access_level?: AccessControlLevel
 }
 
 export interface DataWarehouseSavedQueryFolder {
