@@ -2085,6 +2085,8 @@ importers:
 
   products/batch_exports: {}
 
+  products/billing: {}
+
   products/cdp: {}
 
   products/cohorts:
