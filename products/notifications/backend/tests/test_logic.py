@@ -157,6 +157,14 @@ class TestCreateNotification(BaseTest):
 
         assert NotificationType.COMMENT_MENTION in ACTIVE_REALTIME_NOTIFICATION_TYPES
 
+    def test_experiment_concluded_enum_exists(self):
+        assert NotificationType.EXPERIMENT_CONCLUDED.value == "experiment_concluded"
+
+    def test_experiment_concluded_is_active(self):
+        from products.notifications.backend.facade.api import ACTIVE_REALTIME_NOTIFICATION_TYPES
+
+        assert NotificationType.EXPERIMENT_CONCLUDED in ACTIVE_REALTIME_NOTIFICATION_TYPES
+
     @parameterized.expand(
         [
             (
