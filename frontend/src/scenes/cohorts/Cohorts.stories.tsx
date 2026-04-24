@@ -7,6 +7,59 @@ import { mswDecorator } from '~/mocks/browser'
 import { toPaginatedResponse } from '~/mocks/handlers'
 import { CohortType } from '~/types'
 
+const cohortMembersQueryHandler = (req: {
+    body?: { query?: { kind?: string; source?: { kind?: string } } }
+}): [number, Record<string, unknown>] | undefined => {
+    const queryKind = req.body?.query?.source?.kind ?? req.body?.query?.kind
+    if (queryKind !== 'ActorsQuery') {
+        return undefined
+    }
+    return [
+        200,
+        {
+            columns: ['person_display_name -- Person', 'id', 'created_at'],
+            results: [
+                [
+                    {
+                        id: '017cf78e-a849-0000-0000-01fe9b8d7233',
+                        distinct_id: '017cf78e-a849-0000-0000-01fe9b8d7233',
+                        display_name: 'jane.doe@example.com',
+                    },
+                    '017cf78e-a849-0000-0000-01fe9b8d7233',
+                    '2023-07-03T10:00:00Z',
+                ],
+                [
+                    {
+                        id: '01804f4e-0fb7-0000-0000-0db0398f4d98',
+                        distinct_id: '01804f4e-0fb7-0000-0000-0db0398f4d98',
+                        display_name: 'john.smith@example.com',
+                    },
+                    '01804f4e-0fb7-0000-0000-0db0398f4d98',
+                    '2023-07-03T10:00:00Z',
+                ],
+                [
+                    {
+                        id: '0188f346-0564-0000-0000-16bc74aebc20',
+                        distinct_id: '0188f346-0564-0000-0000-16bc74aebc20',
+                        display_name: 'alice@example.com',
+                    },
+                    '0188f346-0564-0000-0000-16bc74aebc20',
+                    '2023-07-03T10:00:00Z',
+                ],
+            ],
+            hasMore: false,
+            is_cached: true,
+            cache_key: 'cohort-members-story',
+            calculation_trigger: null,
+            error: '',
+            query_status: null,
+            limit: 100,
+            offset: 0,
+            missing_actors_count: 0,
+        },
+    ]
+}
+
 const meta: Meta = {
     component: App,
     title: 'Scenes-App/People/Cohorts',
@@ -75,4 +128,20 @@ export const CohortEditDynamic: Story = {
 export const CohortEditStatic: Story = {
     parameters: { pageUrl: urls.cohort(3) },
     decorators: [mswDecorator({ get: { '/api/projects/:team_id/cohorts/3/': mockCohorts[2], ...cohortApiMocks } })],
+}
+
+export const CohortEditWithMembers: Story = {
+    parameters: {
+        pageUrl: urls.cohort(1),
+        testOptions: {
+            // Waiting for the data table to render, so the copy-to-clipboard button snapshot is stable.
+            waitForSelector: '[data-attr="cohort-person-copy-display-name"]',
+        },
+    },
+    decorators: [
+        mswDecorator({
+            get: { '/api/projects/:team_id/cohorts/1/': mockCohorts[0], ...cohortApiMocks },
+            post: { '/api/environments/:team_id/query/:kind/': cohortMembersQueryHandler },
+        }),
+    ],
 }

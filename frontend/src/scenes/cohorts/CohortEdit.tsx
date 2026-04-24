@@ -18,10 +18,13 @@ import { Spinner } from 'lib/lemon-ui/Spinner/Spinner'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
 import { useAttachedLogic } from 'lib/logic/scenes/useAttachedLogic'
 import { ButtonPrimitive } from 'lib/ui/Button/ButtonPrimitives'
+import { copyToClipboard } from 'lib/utils/copyToClipboard'
 import { cn } from 'lib/utils/css-classes'
 import { cohortEditLogic } from 'scenes/cohorts/cohortEditLogic'
 import { CohortCriteriaGroups } from 'scenes/cohorts/CohortFilters/CohortCriteriaGroups'
 import { COHORT_TYPE_OPTIONS } from 'scenes/cohorts/CohortFilters/constants'
+import { asDisplay, PersonPropType } from 'scenes/persons/person-utils'
+import { PersonDisplay } from 'scenes/persons/PersonDisplay'
 import { interProjectCopyLogic } from 'scenes/resource-transfer/interProjectCopyLogic'
 import { urls } from 'scenes/urls'
 
@@ -66,6 +69,46 @@ export function CohortEdit({ id, attachTo, tabId }: CohortEditProps): JSX.Elemen
         const personRecord = record[0] as PersonDisplayNameType
 
         return <RemovePersonFromCohortButton person={personRecord} />
+    }
+
+    const renderPersonWithCopyButton = ({ value }: { value: unknown }): JSX.Element => {
+        const personValue = value as {
+            id?: string
+            distinct_id?: string
+            display_name?: string
+        } | null
+        if (!personValue) {
+            return <></>
+        }
+        const display =
+            personValue.display_name ??
+            asDisplay({ id: personValue.id, distinct_id: personValue.distinct_id } as PersonPropType)
+        const href = personValue.distinct_id
+            ? urls.personByDistinctId(personValue.distinct_id)
+            : personValue.id
+              ? urls.personByUUID(personValue.id)
+              : undefined
+        return (
+            <div className="flex flex-row items-center gap-1 min-w-0">
+                <LemonButton
+                    size="xsmall"
+                    icon={<IconCopy />}
+                    tooltip={`Copy ${display}`}
+                    data-attr="cohort-person-copy-display-name"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        void copyToClipboard(display, 'person display name')
+                    }}
+                />
+                <PersonDisplay
+                    withIcon
+                    person={{ id: personValue.id, distinct_id: personValue.distinct_id } as PersonPropType}
+                    displayName={personValue.display_name}
+                    noPopover
+                    href={href}
+                />
+            </div>
+        )
     }
 
     const logic = cohortEditLogic(logicProps)
@@ -625,13 +668,16 @@ export function CohortEdit({ id, attachTo, tabId }: CohortEditProps): JSX.Elemen
                                                     fileNameForExport: cohort.name,
                                                     cohortId: cohortId,
                                                     dataNodeLogicKey: dataNodeLogicKey,
-                                                    columns: canRemovePersonFromCohort
-                                                        ? {
-                                                              'person.$delete': {
-                                                                  render: renderRemovePersonFromCohortButton,
-                                                              },
-                                                          }
-                                                        : undefined,
+                                                    columns: {
+                                                        person_display_name: { render: renderPersonWithCopyButton },
+                                                        ...(canRemovePersonFromCohort
+                                                            ? {
+                                                                  'person.$delete': {
+                                                                      render: renderRemovePersonFromCohortButton,
+                                                                  },
+                                                              }
+                                                            : {}),
+                                                    },
                                                     emptyStateHeading: 'There are no matching persons for this cohort',
                                                     emptyStateDetail:
                                                         'Try adjusting your matching criteria or search to see more results.',
