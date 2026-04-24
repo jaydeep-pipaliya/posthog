@@ -25,7 +25,7 @@ actions_that_require_current_team = [
 def delete_bulky_postgres_data(team_ids: list[int]):
     "Efficiently delete large tables for teams from postgres. Using normal CASCADE delete here can time out"
 
-    from posthog.models.cohort import Cohort, CohortPeople
+    from posthog.models.cohort import Cohort
     from posthog.models.feature_flag.feature_flag import FeatureFlagHashKeyOverride
     from posthog.models.group.group import Group
     from posthog.models.group_type_mapping import GroupTypeMapping
@@ -48,7 +48,8 @@ def delete_bulky_postgres_data(team_ids: list[int]):
     # Get cohort_ids from the default database first to avoid cross-database join
     # CohortPeople is in persons_db, Cohort is in default db
     cohort_ids = list(Cohort.objects.filter(team_id__in=team_ids).values_list("id", flat=True))
-    _raw_delete(CohortPeople.objects.filter(cohort_id__in=cohort_ids))
+    if cohort_ids:
+        _delete_cohort_members_for_teams(team_ids, cohort_ids)
 
     _raw_delete(FeatureFlagHashKeyOverride.objects.filter(team_id__in=team_ids))
     _raw_delete(Group.objects.filter(team_id__in=team_ids))
@@ -100,6 +101,21 @@ def _delete_persons_for_team_via_orm(team_id: int) -> None:
 
     _raw_delete_batch(PersonDistinctId.objects.filter(team_id=team_id))
     _raw_delete_batch(Person.objects.filter(team_id=team_id))
+
+
+def _delete_cohort_members_for_teams(team_ids: list[int], cohort_ids: list[int]) -> None:
+    """Delete CohortPeople rows for teams via personhog RPC.
+
+    Falls back to ORM _raw_delete when personhog is not available.
+    Routes per-team for consistent gate/metrics/fallback behavior.
+    """
+    from posthog.models.cohort import Cohort
+    from posthog.models.person.util import delete_cohort_members_bulk
+
+    for team_id in team_ids:
+        team_cohort_ids = list(Cohort.objects.filter(team_id=team_id, id__in=cohort_ids).values_list("id", flat=True))
+        if team_cohort_ids:
+            delete_cohort_members_bulk(team_id, team_cohort_ids)
 
 
 def _raw_delete(queryset: Any):
