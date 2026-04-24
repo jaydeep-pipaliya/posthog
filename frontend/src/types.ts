@@ -2366,6 +2366,7 @@ export interface EndpointType extends WithAccessControl {
     cache_age_seconds: number | null
     is_materialized: boolean
     current_version: number
+    current_version_id: string
     versions_count: number
     /** Purely local value to determine whether the query endpoint should be highlighted, e.g. as a fresh duplicate. */
     _highlight?: boolean
@@ -2392,6 +2393,7 @@ export interface EndpointVersionMaterializationType {
     error?: string
     last_materialized_at?: string
     sync_frequency?: DataModelingSyncInterval
+    saved_query_id?: string
 }
 
 export interface DashboardBasicType extends WithAccessControl {
