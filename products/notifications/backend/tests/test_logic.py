@@ -157,6 +157,11 @@ class TestCreateNotification(BaseTest):
 
         assert NotificationType.COMMENT_MENTION in ACTIVE_REALTIME_NOTIFICATION_TYPES
 
+    def test_alert_firing_is_active(self):
+        from products.notifications.backend.facade.api import ACTIVE_REALTIME_NOTIFICATION_TYPES
+
+        assert NotificationType.ALERT_FIRING in ACTIVE_REALTIME_NOTIFICATION_TYPES
+
     @parameterized.expand(
         [
             (
