@@ -29,9 +29,9 @@ from posthog.rbac.user_access_control import UserAccessControlSerializerMixin
 from products.experiments.backend.experiment_service import ExperimentService
 from products.experiments.backend.metric_utils import refresh_action_names_in_metric
 from products.experiments.backend.models.experiment import Experiment, ExperimentHoldout
+from products.experiments.backend.presentation.saved_metric_serializers import ExperimentToSavedMetricSerializer
 
 from ee.clickhouse.views.experiment_holdouts import ExperimentHoldoutSerializer
-from ee.clickhouse.views.experiment_saved_metrics import ExperimentToSavedMetricSerializer
 
 
 class _ExperimentApiMetricsList(PydanticRootModel):
