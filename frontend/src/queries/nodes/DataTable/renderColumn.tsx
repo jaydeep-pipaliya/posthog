@@ -318,7 +318,6 @@ export function renderColumn(
 
         if (isPersonsNode(query.source) && personRecord.distinct_ids) {
             displayProps.href = urls.personByDistinctId(personRecord.distinct_ids[0])
-            displayProps.withCopyButton = true
         }
 
         if (isActorsQuery(query.source) && value) {
@@ -326,7 +325,6 @@ export function renderColumn(
             displayProps.href = value.distinct_ids?.[0]
                 ? urls.personByDistinctId(value.distinct_ids[0])
                 : urls.personByUUID(value.id)
-            displayProps.withCopyButton = true
         }
 
         if (isTracesQuery(query.source) && value) {

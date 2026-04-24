@@ -139,21 +139,6 @@ export function PersonDisplay({
         </span>
     )
 
-    if (withCopyButton) {
-        content = (
-            <div className="flex flex-row items-center gap-1 min-w-0">
-                <IconCopy
-                    className="text-lg cursor-pointer shrink-0"
-                    onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation()
-                        void copyToClipboard(display, 'person display name')
-                    }}
-                />
-                <span className="min-w-0 truncate">{content}</span>
-            </div>
-        )
-    }
-
     if (noPopover || notebookNode) {
         return content
     }
@@ -175,7 +160,17 @@ export function PersonDisplay({
             fallbackPlacements={['bottom', 'right']}
             showArrow
         >
-            {content}
+            {withCopyButton ? (
+                <div className="flex flex-row items-center gap-1 min-w-0">
+                    <span className="min-w-0 truncate">{content}</span>
+                    <IconCopy
+                        className="text-lg cursor-pointer shrink-0"
+                        onClick={() => void copyToClipboard(display)}
+                    />
+                </div>
+            ) : (
+                <span>{content}</span>
+            )}
         </Popover>
     )
 }
