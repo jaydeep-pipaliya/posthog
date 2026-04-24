@@ -6,6 +6,15 @@ from posthog.email import EmailMessage, is_email_available
 from posthog.models import User
 from posthog.utils import absolute_uri
 
+from products.notifications.backend.facade.api import (
+    NotificationData,
+    NotificationType,
+    Priority,
+    TargetType,
+    create_notification,
+)
+from products.notifications.backend.facade.enums import NotificationOnlyResourceType
+
 if TYPE_CHECKING:
     from posthog.approvals.models import Approval, ChangeRequest
 
@@ -22,6 +31,32 @@ def _get_user_display_name(user: User | None, fallback: str = "A team member") -
 def _build_change_request_url(change_request: "ChangeRequest") -> str:
     """Build the absolute URL to view a change request."""
     return absolute_uri(f"/project/{change_request.team.project_id}/approvals/{change_request.id}")
+
+
+def _send_realtime_resolved(change_request: "ChangeRequest", *, title: str, body: str) -> None:
+    if not change_request.created_by_id:
+        return
+    try:
+        create_notification(
+            NotificationData(
+                team_id=change_request.team_id,
+                notification_type=NotificationType.APPROVAL_RESOLVED,
+                priority=Priority.NORMAL,
+                title=title[:100],
+                body=body[:200],
+                target_type=TargetType.USER,
+                target_id=str(change_request.created_by_id),
+                resource_type=NotificationOnlyResourceType.APPROVAL,
+                resource_id=str(change_request.id),
+                source_url=_build_change_request_url(change_request),
+            )
+        )
+    except Exception as e:
+        logger.exception(
+            "send_approval_resolved_notification.realtime_failed",
+            change_request_id=str(change_request.id),
+            error=str(e),
+        )
 
 
 def _send_approval_email(
