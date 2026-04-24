@@ -10,6 +10,7 @@ const KNOWN_BACKEND_NOTIFICATION_TYPES = [
     'approval_resolved',
     'pipeline_failure',
     'issue_assigned',
+    'experiment_concluded',
 ] as const
 
 describe('REALTIME_NOTIFICATION_TYPE_META', () => {
