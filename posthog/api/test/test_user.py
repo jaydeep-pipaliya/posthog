@@ -19,6 +19,7 @@ from django.utils.text import slugify
 
 from django_otp.plugins.otp_static.models import StaticDevice
 from django_otp.plugins.otp_totp.models import TOTPDevice
+from parameterized import parameterized
 from rest_framework import status
 
 from posthog.api.email_verification import email_verification_token_generator
@@ -1567,6 +1568,80 @@ class TestUserAPI(APIBaseTest):
     def test_notification_settings_default_includes_realtime_disabled_empty_dict(self):
         user = self._create_user("rt-defaults@test.com")
         assert user.notification_settings["realtime_notifications_disabled"] == {}
+
+    def test_realtime_notifications_disabled_accepts_valid_payload(self):
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/users/@me/",
+            {
+                "notification_settings": {
+                    "realtime_notifications_disabled": {"comment_mention": {str(self.team.id): True}}
+                }
+            },
+            format="json",
+        )
+        assert response.status_code == 200, response.json()
+        self.user.refresh_from_db()
+        assert self.user.partial_notification_settings is not None
+        assert self.user.partial_notification_settings["realtime_notifications_disabled"] == {
+            "comment_mention": {str(self.team.id): True}
+        }
+
+    @parameterized.expand(
+        [
+            ("unknown_type", {"made_up_type": {"1": True}}, "Unknown notification type"),
+            ("non_bool_value", {"comment_mention": {"1": "yes"}}, "must be boolean"),
+            ("non_dict_top_level", "not_a_dict", "must be a dict"),
+            ("non_dict_inner", {"comment_mention": "not_a_dict"}, "must be a dict of team_id"),
+        ]
+    )
+    def test_realtime_notifications_disabled_rejects_invalid_payload(self, _name, payload, expected_message_substr):
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/users/@me/",
+            {"notification_settings": {"realtime_notifications_disabled": payload}},
+            format="json",
+        )
+        assert response.status_code == 400, response.json()
+        assert expected_message_substr in response.json()["detail"], response.json()
+
+    def test_realtime_notifications_disabled_false_overwrites_true_for_same_pair(self):
+        self.user.partial_notification_settings = {"realtime_notifications_disabled": {"comment_mention": {"1": True}}}
+        self.user.save()
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/users/@me/",
+            {"notification_settings": {"realtime_notifications_disabled": {"comment_mention": {"1": False}}}},
+            format="json",
+        )
+        assert response.status_code == 200, response.json()
+        self.user.refresh_from_db()
+        assert self.user.partial_notification_settings is not None
+        assert self.user.partial_notification_settings["realtime_notifications_disabled"] == {
+            "comment_mention": {"1": False}
+        }
+
+    def test_realtime_notifications_disabled_two_level_merge_preserves_other_pairs(self):
+        self.user.partial_notification_settings = {
+            "realtime_notifications_disabled": {
+                "comment_mention": {"7": True, "8": True},
+                "alert_firing": {"7": True},
+            }
+        }
+        self.user.save()
+        self.client.force_login(self.user)
+        response = self.client.patch(
+            "/api/users/@me/",
+            {"notification_settings": {"realtime_notifications_disabled": {"comment_mention": {"9": True}}}},
+            format="json",
+        )
+        assert response.status_code == 200, response.json()
+        self.user.refresh_from_db()
+        assert self.user.partial_notification_settings is not None
+        assert self.user.partial_notification_settings["realtime_notifications_disabled"] == {
+            "comment_mention": {"7": True, "8": True, "9": True},
+            "alert_firing": {"7": True},
+        }
 
     def test_invalid_notification_settings_returns_error(self):
         response = self.client.patch("/api/users/@me/", {"notification_settings": {"invalid_key": True}})
