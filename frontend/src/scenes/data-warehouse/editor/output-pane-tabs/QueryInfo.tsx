@@ -199,7 +199,6 @@ export function QueryInfo({ tabId, view }: QueryInfoProps): JSX.Element {
                                     <AccessControlAction
                                         resourceType={AccessControlResourceType.WarehouseObjects}
                                         minAccessLevel={AccessControlLevel.Editor}
-                                        userAccessLevel={savedQuery?.user_access_level}
                                     >
                                         <LemonButton
                                             className="whitespace-nowrap"
@@ -234,8 +233,7 @@ export function QueryInfo({ tabId, view }: QueryInfoProps): JSX.Element {
                                                 sync ||
                                                 getAccessControlDisabledReason(
                                                     AccessControlResourceType.WarehouseObjects,
-                                                    AccessControlLevel.Editor,
-                                                    savedQuery?.user_access_level
+                                                    AccessControlLevel.Editor
                                                 )
                                             }
                                             value={
@@ -262,7 +260,6 @@ export function QueryInfo({ tabId, view }: QueryInfoProps): JSX.Element {
                                         <AccessControlAction
                                             resourceType={AccessControlResourceType.WarehouseObjects}
                                             minAccessLevel={AccessControlLevel.Editor}
-                                            userAccessLevel={savedQuery?.user_access_level}
                                         >
                                             <LemonButton
                                                 type="secondary"
@@ -309,7 +306,6 @@ export function QueryInfo({ tabId, view }: QueryInfoProps): JSX.Element {
                                 <AccessControlAction
                                     resourceType={AccessControlResourceType.WarehouseObjects}
                                     minAccessLevel={AccessControlLevel.Editor}
-                                    userAccessLevel={savedQuery?.user_access_level}
                                 >
                                     <LemonButton
                                         size="small"

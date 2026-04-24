@@ -160,7 +160,6 @@ export function QueryWindow({
                         <AccessControlAction
                             resourceType={AccessControlResourceType.WarehouseObjects}
                             minAccessLevel={AccessControlLevel.Editor}
-                            userAccessLevel={editingView.user_access_level}
                         >
                             <LemonButton
                                 type="secondary"
