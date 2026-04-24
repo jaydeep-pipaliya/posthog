@@ -3018,6 +3018,8 @@ export interface UserApi {
     passkeys_enabled_for_2fa?: boolean | null
     /** @nullable */
     readonly is_organization_first_user: boolean | null
+    /** Real-time notification types that currently have a live dispatch site. Drives the in-app notifications settings UI. Read-only. */
+    readonly active_realtime_notification_types: readonly string[]
     readonly pending_invites: readonly PendingInviteApi[]
 }
 
@@ -3100,6 +3102,8 @@ export interface PatchedUserApi {
     passkeys_enabled_for_2fa?: boolean | null
     /** @nullable */
     readonly is_organization_first_user?: boolean | null
+    /** Real-time notification types that currently have a live dispatch site. Drives the in-app notifications settings UI. Read-only. */
+    readonly active_realtime_notification_types?: readonly string[]
     readonly pending_invites?: readonly PendingInviteApi[]
 }
 
