@@ -5929,7 +5929,7 @@ class TestExperimentParametersFieldMutation(APILicensedTest):
     """
 
     def test_to_internal_value_does_not_mutate_input_dict(self):
-        from ee.clickhouse.views.experiments import ExperimentParametersField
+        from products.experiments.backend.presentation.experiments import ExperimentParametersField
 
         input_dict = {
             "feature_flag_variants": [
@@ -5949,7 +5949,7 @@ class TestExperimentParametersFieldMutation(APILicensedTest):
         }
 
     def test_to_representation_does_not_mutate_stored_value(self):
-        from ee.clickhouse.views.experiments import ExperimentParametersField
+        from products.experiments.backend.presentation.experiments import ExperimentParametersField
 
         stored_value = {
             "feature_flag_variants": [
