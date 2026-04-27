@@ -11,7 +11,6 @@ import {
     LogsAlertsRetrieveParams,
     LogsAttributesRetrieveQueryParams,
     LogsCountCreateBody,
-    LogsCountRangesCreateBody,
     LogsQueryCreateBody,
     LogsSparklineCreateBody,
     LogsValuesRetrieveQueryParams,
@@ -290,7 +289,6 @@ const logsAttributesList = (): ToolBase<typeof LogsAttributesListSchema, Schemas
                 limit: params.limit,
                 offset: params.offset,
                 search: params.search,
-                search_values: params.search_values,
                 serviceNames: params.serviceNames,
             },
         })
@@ -316,27 +314,6 @@ const logsCount = (): ToolBase<typeof LogsCountSchema, Schemas._LogsCountRespons
             body,
         })
         const filtered = pickResponseFields(result, ['count']) as typeof result
-        return filtered
-    },
-})
-
-const LogsCountRangesSchema = LogsCountRangesCreateBody
-
-const logsCountRanges = (): ToolBase<typeof LogsCountRangesSchema, Schemas._LogsCountRangesResponse> => ({
-    name: 'logs-count-ranges',
-    schema: LogsCountRangesSchema,
-    handler: async (context: Context, params: z.infer<typeof LogsCountRangesSchema>) => {
-        const projectId = await context.stateManager.getProjectId()
-        const body: Record<string, unknown> = {}
-        if (params.query !== undefined) {
-            body['query'] = params.query
-        }
-        const result = await context.api.request<Schemas._LogsCountRangesResponse>({
-            method: 'POST',
-            path: `/api/projects/${encodeURIComponent(String(projectId))}/logs/count-ranges/`,
-            body,
-        })
-        const filtered = pickResponseFields(result, ['ranges', 'interval']) as typeof result
         return filtered
     },
 })
@@ -392,7 +369,6 @@ export const GENERATED_TOOLS: Record<string, () => ToolBase<ZodObjectAny>> = {
     'logs-attribute-values-list': logsAttributeValuesList,
     'logs-attributes-list': logsAttributesList,
     'logs-count': logsCount,
-    'logs-count-ranges': logsCountRanges,
     'logs-sparkline-query': logsSparklineQuery,
     'query-logs': queryLogs,
 }
