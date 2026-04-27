@@ -162,6 +162,9 @@ tools:
     visual-review-repos-quarantine-create:
         operation: visual_review_repos_quarantine_create
         enabled: false
-    visual-review-repos-quarantine-destroy:
-        operation: visual_review_repos_quarantine_destroy
+    visual-review-repos-quarantine-expire-create:
+        operation: visual_review_repos_quarantine_expire_create
+        enabled: false
+    visual-review-runs-recompute-create:
+        operation: visual_review_runs_recompute_create
         enabled: false
