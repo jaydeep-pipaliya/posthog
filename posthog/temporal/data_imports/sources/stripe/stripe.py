@@ -1,7 +1,7 @@
 import os
 import dataclasses
 from collections.abc import Callable
-from typing import Any, Optional, Union, get_args, get_type_hints
+from typing import Any, Literal, Optional, Union, get_args, get_type_hints
 
 import orjson
 import pyarrow as pa
@@ -314,7 +314,9 @@ class StripePermissionError(Exception):
         super().__init__(message)
 
 
-def validate_credentials(api_key: str, table_name: Optional[str] = None, auth_method: str = "api_key") -> bool:
+def validate_credentials(
+    api_key: str, table_name: Optional[str] = None, auth_method: Literal["api_key", "oauth"] = "api_key"
+) -> bool:
     """
     Validates Stripe API credentials and checks permissions for all required resources.
     This function will:
@@ -342,7 +344,11 @@ def validate_credentials(api_key: str, table_name: Optional[str] = None, auth_me
     ]
 
     if auth_method == "oauth":
-        # accounts.list requires Connect platform access — OAuth connected-account tokens can't call it
+        # accounts.list requires Connect platform access — OAuth connected-account tokens can't call it.
+        # If a per-table check is requested for Account, skip it cleanly: Account is also absent from
+        # ENDPOINTS so it can never be synced via OAuth anyway.
+        if table_name == ACCOUNT_RESOURCE_NAME:
+            return True
         resources_to_check = [r for r in resources_to_check if r["name"] != ACCOUNT_RESOURCE_NAME]
 
     missing_permissions = {}
