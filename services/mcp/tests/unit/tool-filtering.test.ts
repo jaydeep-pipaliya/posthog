@@ -567,7 +567,7 @@ describe('Tool Filtering - Feature Flags', () => {
 
     it('getRequiredFeatureFlags should return flags used by current definitions', () => {
         const flags = getRequiredFeatureFlags()
-        expect(flags).toEqual(['logs-alerting', 'visual-review-mcp-tools'])
+        expect(flags).toEqual(['logs-alerting', 'visual-review'])
     })
 
     // Test the filtering logic with a direct unit test approach using
