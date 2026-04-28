@@ -160,18 +160,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_returns_newest_first.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_returns_newest_first.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -832,18 +832,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_scenarios_0_basic_listing.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_scenarios_0_basic_listing.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -1500,18 +1500,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_scenarios_1_multiple_snapshots.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_scenarios_1_multiple_snapshots.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -2164,18 +2164,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_scenarios_2_many_distinct_ids.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_scenarios_2_many_distinct_ids.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -2828,18 +2828,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_sorted_0_descending_original_.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_sorted_0_descending_original_.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -3496,18 +3496,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_sorted_1_descending.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_sorted_1_descending.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -4164,18 +4164,18 @@
 # name: TestSessionRecordings.test_get_session_recordings_sorted_2_ascending.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_get_session_recordings_sorted_2_ascending.13
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -5274,27 +5274,27 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.109
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.11
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.110
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -5679,9 +5679,9 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.12
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -5963,18 +5963,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.126
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.127
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -6713,18 +6713,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.143
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.144
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -7568,18 +7568,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.160
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.161
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -8297,18 +8297,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.177
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.178
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -8816,18 +8816,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.24
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.25
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -9560,18 +9560,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.41
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.42
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -10260,18 +10260,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.58
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.59
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -11041,18 +11041,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.75
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.76
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -11792,18 +11792,18 @@
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.92
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordings.test_listing_recordings_is_not_nplus1_for_persons.93
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---

@@ -1217,18 +1217,18 @@
 # name: TestSessionRecordingPlaylist.test_filters_playlist_by_type.35
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
 # name: TestSessionRecordingPlaylist.test_filters_playlist_by_type.36
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -2281,9 +2281,9 @@
 # name: TestSessionRecordingPlaylist.test_filters_playlist_by_type.59
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
@@ -2337,9 +2337,9 @@
 # name: TestSessionRecordingPlaylist.test_filters_playlist_by_type.60
   '''
   SELECT 1 AS "a"
-  FROM "platform_features_propertyaccesscontrol"
-  WHERE ("platform_features_propertyaccesscontrol"."team_id" = 99999
-         AND NOT ("platform_features_propertyaccesscontrol"."property_definition_id" IS NULL))
+  FROM "access_control_propertyaccesscontrol"
+  WHERE ("access_control_propertyaccesscontrol"."team_id" = 99999
+         AND NOT ("access_control_propertyaccesscontrol"."property_definition_id" IS NULL))
   LIMIT 1
   '''
 # ---
