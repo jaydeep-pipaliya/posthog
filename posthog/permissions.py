@@ -492,6 +492,11 @@ class APIScopePermission(ScopeBasePermission):
                 self.message = "OAuth token has no scopes and cannot access this resource"
                 return False
         elif isinstance(request.successful_authenticator, ProjectSecretAPIKeyAuthentication):
+            # PSAK access is opt-in per action. The viewset must list each allowed action explicitly.
+            psak_allowed_actions = getattr(view, "psak_allowed_actions", None) or []
+            if view.action not in psak_allowed_actions:
+                self.message = "This action does not support Project Secret API Key access"
+                return False
             key_scopes = request.successful_authenticator.project_secret_api_key.scopes or []
         else:
             return True

@@ -386,9 +386,8 @@ class MaterializationPreviewRequestSerializer(serializers.Serializer):
 )
 @extend_schema(tags=[ProductKey.ENDPOINTS])
 class EndpointViewSet(TeamAndOrgViewSetMixin, PydanticModelMixin, viewsets.ModelViewSet):
-    # Accept ProjectSecretAPIKey auth in addition to the default chain (session, personal API key, OAuth, JWT).
-    # TeamAndOrgViewSetMixin.get_authenticators prepends this, so PSAK is tried first.
     authentication_classes = [ProjectSecretAPIKeyAuthentication]
+    psak_allowed_actions = ["run"]
     # NOTE: Do we need to override the scopes for the "create"
     scope_object = "endpoint"
     # Special case for query - these are all essentially read actions

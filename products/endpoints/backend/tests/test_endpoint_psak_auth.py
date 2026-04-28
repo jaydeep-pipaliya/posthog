@@ -1,4 +1,4 @@
-from posthog.test.base import APIBaseTest
+from posthog.test.base import APIBaseTest, ClickhouseTestMixin
 
 from parameterized import parameterized
 from rest_framework import status
@@ -28,7 +28,7 @@ def _make_psak(team, label="psak", scopes=_UNSET):
     return token, psak
 
 
-class TestEndpointViewSetPSAKAuth(APIBaseTest):
+class TestEndpointViewSetPSAKAuth(ClickhouseTestMixin, APIBaseTest):
     def setUp(self):
         super().setUp()
         self.endpoint = create_endpoint_with_version(
@@ -43,26 +43,51 @@ class TestEndpointViewSetPSAKAuth(APIBaseTest):
     def _auth_headers(self, token):
         return {"HTTP_AUTHORIZATION": f"Bearer {token}"}
 
-    def test_psak_endpoint_read_list_succeeds(self):
-        token, _ = _make_psak(self.team, label="list-key")
+    def test_psak_can_run_endpoint(self):
+        token, _ = _make_psak(self.team, label="run-key")
 
-        response = self.client.get(
+        response = self.client.post(
+            f"/api/projects/{self.team.id}/endpoints/my_endpoint/run/",
+            data={},
+            content_type="application/json",
+            **self._auth_headers(token),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+
+    @parameterized.expand(
+        [
+            # PSAK must only authorize the `run` action — every other action returns 403.
+            ("list", "GET", ""),
+            ("retrieve", "GET", "my_endpoint/"),
+            ("destroy", "DELETE", "my_endpoint/"),
+            ("openapi_spec", "GET", "my_endpoint/openapi.json/"),
+            ("materialization_status", "GET", "my_endpoint/materialization_status/"),
+            ("versions", "GET", "my_endpoint/versions/"),
+        ]
+    )
+    def test_psak_blocked_on_non_run_actions(self, _name, method, path_suffix):
+        token, _ = _make_psak(self.team, label=f"non-run-{_name}")
+
+        response = self.client.generic(
+            method,
+            f"/api/projects/{self.team.id}/endpoints/{path_suffix}",
+            **self._auth_headers(token),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.content)
+
+    def test_psak_blocked_on_create(self):
+        token, _ = _make_psak(self.team, label="create-key")
+
+        response = self.client.post(
             f"/api/projects/{self.team.id}/endpoints/",
+            data={"name": "new_endpoint", "query": SAMPLE_QUERY},
+            content_type="application/json",
             **self._auth_headers(token),
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
-        assert any(e["name"] == "my_endpoint" for e in response.json()["results"])
-
-    def test_psak_endpoint_read_retrieve_succeeds(self):
-        token, _ = _make_psak(self.team, label="retrieve-key")
-
-        response = self.client.get(
-            f"/api/projects/{self.team.id}/endpoints/my_endpoint/",
-            **self._auth_headers(token),
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @parameterized.expand(
         [
@@ -73,18 +98,10 @@ class TestEndpointViewSetPSAKAuth(APIBaseTest):
     def test_psak_without_endpoint_scope_returns_403(self, _name, scopes):
         token, _ = _make_psak(self.team, label=f"no-scope-{_name}", scopes=scopes)
 
-        response = self.client.get(
-            f"/api/projects/{self.team.id}/endpoints/",
-            **self._auth_headers(token),
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    def test_psak_read_cannot_write(self):
-        token, _ = _make_psak(self.team, label="write-attempt-key")
-
-        response = self.client.delete(
-            f"/api/projects/{self.team.id}/endpoints/my_endpoint/",
+        response = self.client.post(
+            f"/api/projects/{self.team.id}/endpoints/my_endpoint/run/",
+            data={},
+            content_type="application/json",
             **self._auth_headers(token),
         )
 
@@ -92,8 +109,10 @@ class TestEndpointViewSetPSAKAuth(APIBaseTest):
 
     def test_unknown_psak_returns_401(self):
         # Valid-looking but not-in-DB token
-        response = self.client.get(
-            f"/api/projects/{self.team.id}/endpoints/",
+        response = self.client.post(
+            f"/api/projects/{self.team.id}/endpoints/my_endpoint/run/",
+            data={},
+            content_type="application/json",
             **self._auth_headers("phs_" + "z" * 35),
         )
 
@@ -106,15 +125,16 @@ class TestEndpointViewSetPSAKAuth(APIBaseTest):
 
         token, _ = _make_psak(self.team, label="team-mismatch-key")
 
-        response = self.client.get(
-            f"/api/projects/{other_team.id}/endpoints/",
+        response = self.client.post(
+            f"/api/projects/{other_team.id}/endpoints/my_endpoint/run/",
+            data={},
+            content_type="application/json",
             **self._auth_headers(token),
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_psak_does_not_authenticate_local_evaluation(self):
-        # Sending a PSAK to the legacy local_evaluation endpoint must not authenticate:
         # local_evaluation only accepts Team.secret_api_token via TeamSecretTokenAuthentication.
         token, _ = _make_psak(self.team, label="local-eval-key")
 
