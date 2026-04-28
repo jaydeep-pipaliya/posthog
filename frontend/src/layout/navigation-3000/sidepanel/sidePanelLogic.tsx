@@ -4,8 +4,9 @@ import { combineUrl, router, urlToAction } from 'kea-router'
 import { preflightLogic } from 'scenes/PreflightCheck/preflightLogic'
 import { teamLogic } from 'scenes/teamLogic'
 import { urls } from 'scenes/urls'
+import { userLogic } from 'scenes/userLogic'
 
-import { SidePanelTab } from '~/types'
+import { AvailableFeature, SidePanelTab } from '~/types'
 
 import { sidePanelContextLogic } from './panels/sidePanelContextLogic'
 import { sidePanelHealthLogic } from './panels/sidePanelHealthLogic'
@@ -51,14 +52,16 @@ export const sidePanelLogic = kea<sidePanelLogicType>([
             ['sceneSidePanelContext'],
             teamLogic,
             ['currentTeam'],
+            userLogic,
+            ['hasAvailableFeature'],
         ],
         actions: [sidePanelStateLogic, ['closeSidePanel', 'openSidePanel']],
     })),
 
     selectors({
         enabledTabs: [
-            (s) => [s.isCloudOrDev, s.sceneSidePanelContext, s.currentTeam],
-            (isCloudOrDev, sceneSidePanelContext, currentTeam) => {
+            (s) => [s.isCloudOrDev, s.sceneSidePanelContext, s.currentTeam, s.hasAvailableFeature],
+            (isCloudOrDev, sceneSidePanelContext, currentTeam, hasAvailableFeature) => {
                 const tabs: SidePanelTab[] = []
 
                 /* Always show PostHog AI at the top of the tabs list
@@ -77,7 +80,7 @@ export const sidePanelLogic = kea<sidePanelLogicType>([
                     tabs.push(SidePanelTab.Support)
                 }
 
-                if (sceneSidePanelContext?.activity_scope) {
+                if (sceneSidePanelContext?.activity_scope && hasAvailableFeature(AvailableFeature.AUDIT_LOGS)) {
                     tabs.push(SidePanelTab.Activity)
                 }
                 tabs.push(SidePanelTab.Discussion)
