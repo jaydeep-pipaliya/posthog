@@ -21,6 +21,7 @@ import {
     ExperimentsShipVariantCreateBody,
     ExperimentsShipVariantCreateParams,
     ExperimentsTimeseriesResultsRetrieveParams,
+    ExperimentsTimeseriesResultsRetrieveQueryParams,
 } from '@/generated/experiments/api'
 import { withUiApp } from '@/resources/ui-apps'
 import { withPostHogUrl, pickResponseFields, type WithPostHogUrl } from '@/tools/tool-utils'
@@ -414,7 +415,9 @@ const experimentStats = (): ToolBase<typeof ExperimentStatsSchema, unknown> => (
     },
 })
 
-const ExperimentTimeseriesResultsSchema = ExperimentsTimeseriesResultsRetrieveParams.omit({ project_id: true })
+const ExperimentTimeseriesResultsSchema = ExperimentsTimeseriesResultsRetrieveParams.omit({ project_id: true }).extend(
+    ExperimentsTimeseriesResultsRetrieveQueryParams.shape
+)
 
 const experimentTimeseriesResults = (): ToolBase<typeof ExperimentTimeseriesResultsSchema, unknown> =>
     withUiApp('experiment-results', {
@@ -425,6 +428,10 @@ const experimentTimeseriesResults = (): ToolBase<typeof ExperimentTimeseriesResu
             const result = await context.api.request<unknown>({
                 method: 'GET',
                 path: `/api/projects/${encodeURIComponent(String(projectId))}/experiments/${encodeURIComponent(String(params.id))}/timeseries_results/`,
+                query: {
+                    fingerprint: params.fingerprint,
+                    metric_uuid: params.metric_uuid,
+                },
             })
             return result
         },

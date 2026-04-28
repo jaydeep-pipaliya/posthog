@@ -5,14 +5,18 @@ import type { Schemas } from '@/api/generated'
 import {
     HogFlowsListQueryParams,
     HogFlowsLogsRetrieveParams,
+    HogFlowsLogsRetrieveQueryParams,
     HogFlowsMetricsRetrieveParams,
+    HogFlowsMetricsRetrieveQueryParams,
     HogFlowsRetrieveParams,
 } from '@/generated/workflows/api'
 import { withUiApp } from '@/resources/ui-apps'
 import { withPostHogUrl, type WithPostHogUrl } from '@/tools/tool-utils'
 import type { Context, ToolBase, ZodObjectAny } from '@/tools/types'
 
-const HogFlowsLogsRetrieveSchema = HogFlowsLogsRetrieveParams.omit({ project_id: true })
+const HogFlowsLogsRetrieveSchema = HogFlowsLogsRetrieveParams.omit({ project_id: true }).extend(
+    HogFlowsLogsRetrieveQueryParams.shape
+)
 
 const hogFlowsLogsRetrieve = (): ToolBase<typeof HogFlowsLogsRetrieveSchema, unknown> => ({
     name: 'hog-flows-logs-retrieve',
@@ -22,21 +26,40 @@ const hogFlowsLogsRetrieve = (): ToolBase<typeof HogFlowsLogsRetrieveSchema, unk
         const result = await context.api.request<unknown>({
             method: 'GET',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/hog_flows/${encodeURIComponent(String(params.id))}/logs/`,
+            query: {
+                after: params.after,
+                before: params.before,
+                instance_id: params.instance_id,
+                level: params.level,
+                limit: params.limit,
+                search: params.search,
+            },
         })
         return result
     },
 })
 
-const HogFlowsMetricsRetrieveSchema = HogFlowsMetricsRetrieveParams.omit({ project_id: true })
+const HogFlowsMetricsRetrieveSchema = HogFlowsMetricsRetrieveParams.omit({ project_id: true }).extend(
+    HogFlowsMetricsRetrieveQueryParams.shape
+)
 
-const hogFlowsMetricsRetrieve = (): ToolBase<typeof HogFlowsMetricsRetrieveSchema, unknown> => ({
+const hogFlowsMetricsRetrieve = (): ToolBase<typeof HogFlowsMetricsRetrieveSchema, Schemas.AppMetricsResponse> => ({
     name: 'hog-flows-metrics-retrieve',
     schema: HogFlowsMetricsRetrieveSchema,
     handler: async (context: Context, params: z.infer<typeof HogFlowsMetricsRetrieveSchema>) => {
         const projectId = await context.stateManager.getProjectId()
-        const result = await context.api.request<unknown>({
+        const result = await context.api.request<Schemas.AppMetricsResponse>({
             method: 'GET',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/hog_flows/${encodeURIComponent(String(params.id))}/metrics/`,
+            query: {
+                after: params.after,
+                before: params.before,
+                breakdown_by: params.breakdown_by,
+                instance_id: params.instance_id,
+                interval: params.interval,
+                kind: params.kind,
+                name: params.name,
+            },
         })
         return result
     },

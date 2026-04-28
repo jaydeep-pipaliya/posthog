@@ -6,7 +6,6 @@ import {
     ErrorTrackingAssignmentRulesCreateBody,
     ErrorTrackingAssignmentRulesListQueryParams,
     ErrorTrackingGroupingRulesCreateBody,
-    ErrorTrackingGroupingRulesListQueryParams,
     ErrorTrackingIssuesListQueryParams,
     ErrorTrackingIssuesMergeCreateBody,
     ErrorTrackingIssuesMergeCreateParams,
@@ -85,11 +84,11 @@ const errorTrackingGroupingRulesCreate = (): ToolBase<
         if (params.filters !== undefined) {
             body['filters'] = params.filters
         }
-        if (params.order_key !== undefined) {
-            body['order_key'] = params.order_key
+        if (params.assignee !== undefined) {
+            body['assignee'] = params.assignee
         }
-        if (params.disabled_data !== undefined) {
-            body['disabled_data'] = params.disabled_data
+        if (params.description !== undefined) {
+            body['description'] = params.description
         }
         const result = await context.api.request<Schemas.ErrorTrackingGroupingRule>({
             method: 'POST',
@@ -100,23 +99,20 @@ const errorTrackingGroupingRulesCreate = (): ToolBase<
     },
 })
 
-const ErrorTrackingGroupingRulesListSchema = ErrorTrackingGroupingRulesListQueryParams
+const ErrorTrackingGroupingRulesListSchema = z.object({})
 
 const errorTrackingGroupingRulesList = (): ToolBase<
     typeof ErrorTrackingGroupingRulesListSchema,
-    Schemas.PaginatedErrorTrackingGroupingRuleList
+    Schemas.ErrorTrackingGroupingRuleListResponse
 > => ({
     name: 'error-tracking-grouping-rules-list',
     schema: ErrorTrackingGroupingRulesListSchema,
+    // eslint-disable-next-line no-unused-vars
     handler: async (context: Context, params: z.infer<typeof ErrorTrackingGroupingRulesListSchema>) => {
         const projectId = await context.stateManager.getProjectId()
-        const result = await context.api.request<Schemas.PaginatedErrorTrackingGroupingRuleList>({
+        const result = await context.api.request<Schemas.ErrorTrackingGroupingRuleListResponse>({
             method: 'GET',
             path: `/api/environments/${encodeURIComponent(String(projectId))}/error_tracking/grouping_rules/`,
-            query: {
-                limit: params.limit,
-                offset: params.offset,
-            },
         })
         return result
     },
@@ -285,12 +281,6 @@ const errorTrackingSuppressionRulesCreate = (): ToolBase<
         const body: Record<string, unknown> = {}
         if (params.filters !== undefined) {
             body['filters'] = params.filters
-        }
-        if (params.order_key !== undefined) {
-            body['order_key'] = params.order_key
-        }
-        if (params.disabled_data !== undefined) {
-            body['disabled_data'] = params.disabled_data
         }
         if (params.sampling_rate !== undefined) {
             body['sampling_rate'] = params.sampling_rate

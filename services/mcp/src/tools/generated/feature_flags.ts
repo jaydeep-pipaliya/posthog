@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import type { Schemas } from '@/api/generated'
 import {
+    FeatureFlagsActivityRetrieveParams,
     FeatureFlagsActivityRetrieveQueryParams,
     FeatureFlagsCopyFlagsCreateBody,
     FeatureFlagsCreateBody,
@@ -125,22 +126,27 @@ const featureFlagGetAll = (): ToolBase<
     },
 })
 
-const FeatureFlagGetDefinitionSchema = FeatureFlagsRetrieveParams.omit({ organization_id: true })
+const FeatureFlagGetDefinitionSchema = FeatureFlagsRetrieveParams.omit({ project_id: true })
 
-const featureFlagGetDefinition = (): ToolBase<typeof FeatureFlagGetDefinitionSchema, unknown> => ({
+const featureFlagGetDefinition = (): ToolBase<
+    typeof FeatureFlagGetDefinitionSchema,
+    WithPostHogUrl<Schemas.FeatureFlag>
+> => ({
     name: 'feature-flag-get-definition',
     schema: FeatureFlagGetDefinitionSchema,
     handler: async (context: Context, params: z.infer<typeof FeatureFlagGetDefinitionSchema>) => {
-        const orgId = await context.stateManager.getOrgID()
-        const result = await context.api.request<unknown>({
+        const projectId = await context.stateManager.getProjectId()
+        const result = await context.api.request<Schemas.FeatureFlag>({
             method: 'GET',
-            path: `/api/organizations/${encodeURIComponent(String(orgId))}/feature_flags/${encodeURIComponent(String(params.feature_flag_key))}/`,
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/feature_flags/${encodeURIComponent(String(params.id))}/`,
         })
         return await withPostHogUrl(context, result, `/feature_flags/${result.id}`)
     },
 })
 
-const FeatureFlagsActivityRetrieveSchema = FeatureFlagsActivityRetrieveQueryParams
+const FeatureFlagsActivityRetrieveSchema = FeatureFlagsActivityRetrieveParams.omit({ project_id: true }).extend(
+    FeatureFlagsActivityRetrieveQueryParams.shape
+)
 
 const featureFlagsActivityRetrieve = (): ToolBase<
     typeof FeatureFlagsActivityRetrieveSchema,
@@ -152,7 +158,7 @@ const featureFlagsActivityRetrieve = (): ToolBase<
         const projectId = await context.stateManager.getProjectId()
         const result = await context.api.request<Schemas.ActivityLogPaginatedResponse>({
             method: 'GET',
-            path: `/api/projects/${encodeURIComponent(String(projectId))}/feature_flags/activity/`,
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/feature_flags/${encodeURIComponent(String(params.id))}/activity/`,
             query: {
                 limit: params.limit,
                 page: params.page,
@@ -184,6 +190,9 @@ const featureFlagsCopyFlagsCreate = (): ToolBase<
         }
         if (params.copy_schedule !== undefined) {
             body['copy_schedule'] = params.copy_schedule
+        }
+        if (params.disable_copied_flag !== undefined) {
+            body['disable_copied_flag'] = params.disable_copied_flag
         }
         const result = await context.api.request<Schemas.CopyFlagsResponse>({
             method: 'POST',

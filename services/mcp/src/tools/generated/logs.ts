@@ -10,6 +10,7 @@ import {
     LogsAlertsPartialUpdateParams,
     LogsAlertsRetrieveParams,
     LogsAttributesRetrieveQueryParams,
+    LogsCountCreateBody,
     LogsQueryCreateBody,
     LogsSparklineCreateBody,
     LogsValuesRetrieveQueryParams,
@@ -249,12 +250,12 @@ const logsAlertsRetrieve = (): ToolBase<typeof LogsAlertsRetrieveSchema, Schemas
 
 const LogsAttributeValuesListSchema = LogsValuesRetrieveQueryParams
 
-const logsAttributeValuesList = (): ToolBase<typeof LogsAttributeValuesListSchema, unknown> => ({
+const logsAttributeValuesList = (): ToolBase<typeof LogsAttributeValuesListSchema, Schemas._LogsValuesResponse> => ({
     name: 'logs-attribute-values-list',
     schema: LogsAttributeValuesListSchema,
     handler: async (context: Context, params: z.infer<typeof LogsAttributeValuesListSchema>) => {
         const projectId = await context.stateManager.getProjectId()
-        const result = await context.api.request<unknown>({
+        const result = await context.api.request<Schemas._LogsValuesResponse>({
             method: 'GET',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/logs/values/`,
             query: {
@@ -273,12 +274,12 @@ const logsAttributeValuesList = (): ToolBase<typeof LogsAttributeValuesListSchem
 
 const LogsAttributesListSchema = LogsAttributesRetrieveQueryParams
 
-const logsAttributesList = (): ToolBase<typeof LogsAttributesListSchema, unknown> => ({
+const logsAttributesList = (): ToolBase<typeof LogsAttributesListSchema, Schemas._LogsAttributesResponse> => ({
     name: 'logs-attributes-list',
     schema: LogsAttributesListSchema,
     handler: async (context: Context, params: z.infer<typeof LogsAttributesListSchema>) => {
         const projectId = await context.stateManager.getProjectId()
-        const result = await context.api.request<unknown>({
+        const result = await context.api.request<Schemas._LogsAttributesResponse>({
             method: 'GET',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/logs/attributes/`,
             query: {
@@ -296,9 +297,30 @@ const logsAttributesList = (): ToolBase<typeof LogsAttributesListSchema, unknown
     },
 })
 
+const LogsCountSchema = LogsCountCreateBody
+
+const logsCount = (): ToolBase<typeof LogsCountSchema, Schemas._LogsCountResponse> => ({
+    name: 'logs-count',
+    schema: LogsCountSchema,
+    handler: async (context: Context, params: z.infer<typeof LogsCountSchema>) => {
+        const projectId = await context.stateManager.getProjectId()
+        const body: Record<string, unknown> = {}
+        if (params.query !== undefined) {
+            body['query'] = params.query
+        }
+        const result = await context.api.request<Schemas._LogsCountResponse>({
+            method: 'POST',
+            path: `/api/projects/${encodeURIComponent(String(projectId))}/logs/count/`,
+            body,
+        })
+        const filtered = pickResponseFields(result, ['count']) as typeof result
+        return filtered
+    },
+})
+
 const LogsSparklineQuerySchema = LogsSparklineCreateBody
 
-const logsSparklineQuery = (): ToolBase<typeof LogsSparklineQuerySchema, unknown> => ({
+const logsSparklineQuery = (): ToolBase<typeof LogsSparklineQuerySchema, Schemas._LogsSparklineResponse> => ({
     name: 'logs-sparkline-query',
     schema: LogsSparklineQuerySchema,
     handler: async (context: Context, params: z.infer<typeof LogsSparklineQuerySchema>) => {
@@ -307,7 +329,7 @@ const logsSparklineQuery = (): ToolBase<typeof LogsSparklineQuerySchema, unknown
         if (params.query !== undefined) {
             body['query'] = params.query
         }
-        const result = await context.api.request<unknown>({
+        const result = await context.api.request<Schemas._LogsSparklineResponse>({
             method: 'POST',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/logs/sparkline/`,
             body,
@@ -319,7 +341,7 @@ const logsSparklineQuery = (): ToolBase<typeof LogsSparklineQuerySchema, unknown
 
 const QueryLogsSchema = LogsQueryCreateBody
 
-const queryLogs = (): ToolBase<typeof QueryLogsSchema, unknown> => ({
+const queryLogs = (): ToolBase<typeof QueryLogsSchema, Schemas._LogsQueryResponse> => ({
     name: 'query-logs',
     schema: QueryLogsSchema,
     handler: async (context: Context, params: z.infer<typeof QueryLogsSchema>) => {
@@ -328,7 +350,7 @@ const queryLogs = (): ToolBase<typeof QueryLogsSchema, unknown> => ({
         if (params.query !== undefined) {
             body['query'] = params.query
         }
-        const result = await context.api.request<unknown>({
+        const result = await context.api.request<Schemas._LogsQueryResponse>({
             method: 'POST',
             path: `/api/projects/${encodeURIComponent(String(projectId))}/logs/query/`,
             body,
@@ -346,6 +368,7 @@ export const GENERATED_TOOLS: Record<string, () => ToolBase<ZodObjectAny>> = {
     'logs-alerts-retrieve': logsAlertsRetrieve,
     'logs-attribute-values-list': logsAttributeValuesList,
     'logs-attributes-list': logsAttributesList,
+    'logs-count': logsCount,
     'logs-sparkline-query': logsSparklineQuery,
     'query-logs': queryLogs,
 }
