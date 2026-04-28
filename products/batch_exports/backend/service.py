@@ -265,6 +265,32 @@ class S3BatchExportInputs(BaseBatchExportInputs):
 
 
 @dataclass(kw_only=True)
+class FileDownloadBatchExportInputs(BaseBatchExportInputs):
+    """Inputs for a file download batch export workflow.
+
+    Notice that since this workflow is not meant to be scheduled, the export bounds are
+    required. If eventually we develop some feature that requires scheduling this
+    workflow, then we can make these optional again.
+
+    Attributes:
+        data_interval_start: Lower bound for the batch export.
+        data_interval_end: Upper bound for the batch export.
+        file_format: File format to use when exporting files. Same as S3.
+        max_file_size_mb: The maximum file size in MB for each file to be uploaded. Same
+            as S3.
+        compression: Compression algorithm, if any. Same as S3.
+        expires_in: Number of seconds to expire the download URLs.
+    """
+
+    data_interval_start: str
+    data_interval_end: str
+    file_format: str = "Parquet"
+    max_file_size_mb: int | None = None
+    compression: str | None = None
+    expires_in_seconds: int = 3600
+
+
+@dataclass(kw_only=True)
 class SnowflakeBatchExportInputs(BaseBatchExportInputs):
     """Inputs for Snowflake export workflow."""
 
