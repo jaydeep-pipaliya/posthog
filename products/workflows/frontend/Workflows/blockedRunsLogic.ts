@@ -109,21 +109,17 @@ export const blockedRunsLogic = kea<blockedRunsLogicType>([
                 return
             }
 
-            let succeeded = 0
-            let failed = 0
-
-            for (const run of replayable) {
-                try {
-                    await api.hogFlows.replayBlockedRun(props.id, {
+            const results = await Promise.allSettled(
+                replayable.map((run) =>
+                    api.hogFlows.replayBlockedRun(props.id, {
                         event_uuid: run.event_uuid!,
                         action_id: run.action_id!,
                         instance_id: run.instance_id,
                     })
-                    succeeded++
-                } catch {
-                    failed++
-                }
-            }
+                )
+            )
+            const succeeded = results.filter((r) => r.status === 'fulfilled').length
+            const failed = results.filter((r) => r.status === 'rejected').length
 
             if (succeeded > 0) {
                 lemonToast.success(`Queued ${succeeded} run${succeeded !== 1 ? 's' : ''} for replay`)
