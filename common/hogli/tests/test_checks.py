@@ -15,8 +15,10 @@ from hogli.product.checks import (
     ProductYamlOwnersCheck,
     _has_test_files,
     _is_noop_script,
+    _names_from_pattern,
     _parse_pytest_paths,
     has_legacy_interface_leaks,
+    validate_facade_alternation,
 )
 
 # ---------------------------------------------------------------------------
@@ -577,3 +579,130 @@ class TestProductYamlOwnersCheck:
         monkeypatch.setattr(gh_module, "_fetch_err", "gh CLI not found")
         result = owners_check.run(ctx)
         assert not result.issues
+
+
+# ---------------------------------------------------------------------------
+# validate_facade_alternation — global tach.toml check
+# ---------------------------------------------------------------------------
+
+
+def _mkproduct(products_dir: Path, name: str, *, isolated: bool) -> None:
+    p = products_dir / name
+    (p / "backend").mkdir(parents=True)
+    (p / "__init__.py").write_text("")
+    (p / "backend" / "__init__.py").write_text("")
+    if isolated:
+        (p / "backend" / "facade").mkdir()
+        (p / "backend" / "facade" / "contracts.py").write_text("")
+
+
+_CANONICAL_BLOCK = """\
+[[interfaces]]
+expose = [
+    "backend\\\\.facade.*",
+    "backend\\\\.presentation\\\\.views.*",
+]
+from = [
+    "products\\\\.(alpha|beta)",
+]
+"""
+
+
+class TestValidateFacadeAlternation:
+    def test_empty_tach(self, tmp_path: Path) -> None:
+        assert validate_facade_alternation("", tmp_path) == []
+
+    def test_no_canonical_block(self, tmp_path: Path) -> None:
+        # A tach with only a legacy-leak block — no canonical alternation
+        # exists yet, so this validator stays quiet (TachCheck handles the
+        # per-product side).
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        tach = """\
+[[interfaces]]
+expose = ["backend\\\\.models.*"]
+from = ["products.alpha"]
+"""
+        assert validate_facade_alternation(tach, tmp_path) == []
+
+    def test_clean_alternation(self, tmp_path: Path) -> None:
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        _mkproduct(tmp_path, "beta", isolated=True)
+        assert validate_facade_alternation(_CANONICAL_BLOCK, tmp_path) == []
+
+    def test_stale_entry_product_missing(self, tmp_path: Path) -> None:
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        # beta is in the alternation but does not exist on disk
+        issues = validate_facade_alternation(_CANONICAL_BLOCK, tmp_path)
+        assert any("beta" in i and "does not exist" in i for i in issues)
+
+    def test_stale_entry_not_isolated(self, tmp_path: Path) -> None:
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        _mkproduct(tmp_path, "beta", isolated=False)
+        issues = validate_facade_alternation(_CANONICAL_BLOCK, tmp_path)
+        assert any("beta" in i and "contracts.py" in i for i in issues)
+
+    def test_isolated_product_missing_from_alternation(self, tmp_path: Path) -> None:
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        _mkproduct(tmp_path, "beta", isolated=True)
+        _mkproduct(tmp_path, "gamma", isolated=True)  # isolated but not in alternation
+        issues = validate_facade_alternation(_CANONICAL_BLOCK, tmp_path)
+        assert any("gamma" in i and "not listed" in i for i in issues)
+
+    def test_legacy_block_alone_is_not_canonical(self, tmp_path: Path) -> None:
+        # An isolated product with only a legacy-leak block (non-canonical
+        # expose) must still be flagged as missing from the canonical
+        # alternation.
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        _mkproduct(tmp_path, "beta", isolated=True)
+        _mkproduct(tmp_path, "delta", isolated=True)
+        tach = (
+            _CANONICAL_BLOCK
+            + """
+[[interfaces]]
+expose = ["backend\\\\.models.*"]
+from = ["products.delta"]
+"""
+        )
+        issues = validate_facade_alternation(tach, tmp_path)
+        assert any("delta" in i and "not listed" in i for i in issues)
+
+    def test_two_backslash_form_parses(self, tmp_path: Path) -> None:
+        # Real tach.toml on disk uses two literal backslashes (`\\.`).
+        # The Python-string fixture above only has one when triple-quoted,
+        # so simulate the on-disk form here.
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        on_disk = (
+            "[[interfaces]]\n"
+            'expose = [\n    "backend\\\\.facade.*",\n    "backend\\\\.presentation\\\\.views.*",\n]\n'
+            'from = [\n    "products\\\\.alpha",\n]\n'
+        )
+        assert validate_facade_alternation(on_disk, tmp_path) == []
+
+    def test_lenient_products_ignored(self, tmp_path: Path) -> None:
+        # Non-isolated products without contracts.py should never trigger
+        # the "missing from alternation" rule.
+        _mkproduct(tmp_path, "alpha", isolated=True)
+        _mkproduct(tmp_path, "beta", isolated=True)
+        _mkproduct(tmp_path, "lenient_one", isolated=False)
+        _mkproduct(tmp_path, "lenient_two", isolated=False)
+        assert validate_facade_alternation(_CANONICAL_BLOCK, tmp_path) == []
+
+
+class TestNamesFromPattern:
+    @pytest.mark.parametrize(
+        "pattern, expected",
+        [
+            ("products.experiments", {"experiments"}),
+            ("products\\.experiments", {"experiments"}),
+            ("products\\\\.experiments", {"experiments"}),
+            ("products\\.(a|b|c)", {"a", "b", "c"}),
+            ("products\\\\.(a|b|c)", {"a", "b", "c"}),
+            ("products\\.(experiments|mcp_store|tracing)", {"experiments", "mcp_store", "tracing"}),
+            # Unsupported / unrelated forms — return empty set
+            ("posthog.api", set()),
+            ("products.something.deeper", set()),
+            ("", set()),
+        ],
+    )
+    def test_extraction(self, pattern: str, expected: set[str]) -> None:
+        assert _names_from_pattern(pattern) == expected
