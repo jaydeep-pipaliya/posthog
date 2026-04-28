@@ -4573,6 +4573,10 @@ export interface Experiment {
         frequentist?: {
             alpha?: number
         }
+        cuped?: {
+            enabled?: boolean
+            lookback_days?: number
+        }
     }
     scheduling_config?: {
         timeseries?: boolean
