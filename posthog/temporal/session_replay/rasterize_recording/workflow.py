@@ -12,8 +12,8 @@ with wf.unsafe.imports_passed_through():
 
 from .activities import build_rasterization_input, finalize_rasterization
 from .types import (
+    BuildRasterizationResult,
     FinalizeRasterizationInput,
-    RasterizationActivityInput,
     RasterizationActivityOutput,
     RasterizeRecordingInputs,
 )
@@ -41,21 +41,25 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
     async def run(self, inputs: RasterizeRecordingInputs) -> RasterizationActivityOutput:
         retry_policy = common.RetryPolicy(maximum_attempts=3)
 
-        # Step 1: Read ExportedAsset, validate, build activity input
         self._phase = "preparing"
-        activity_input: RasterizationActivityInput = await wf.execute_activity(
+        prep: BuildRasterizationResult = await wf.execute_activity(
             build_rasterization_input,
             inputs.exported_asset_id,
             start_to_close_timeout=dt.timedelta(minutes=5),
             retry_policy=retry_policy,
         )
 
-        # Step 2: Dispatch rasterization to the Node.js worker
-        # The Node.js activity returns a plain dict (cross-language boundary)
+        if prep.cached_output is not None:
+            self._phase = "done"
+            return prep.cached_output
+
+        assert prep.activity_input is not None  # tagged-union invariant
+
         self._phase = "rendering"
+        # Node.js returns a plain dict across the cross-language boundary.
         raw_result: dict[str, Any] = await wf.execute_activity(
             "rasterize-recording",
-            activity_input.model_dump(exclude_none=True),
+            prep.activity_input.model_dump(exclude_none=True),
             task_queue=settings.RASTERIZATION_TASK_QUEUE,
             start_to_close_timeout=dt.timedelta(minutes=30),
             heartbeat_timeout=dt.timedelta(seconds=30),
@@ -64,11 +68,14 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
 
         result = RasterizationActivityOutput.model_validate(raw_result)
 
-        # Step 3: Finalize the ExportedAsset with the S3 URI and metadata
         self._phase = "finalizing"
         await wf.execute_activity(
             finalize_rasterization,
-            FinalizeRasterizationInput(exported_asset_id=inputs.exported_asset_id, result=result),
+            FinalizeRasterizationInput(
+                exported_asset_id=inputs.exported_asset_id,
+                result=result,
+                render_fingerprint=prep.render_fingerprint,
+            ),
             start_to_close_timeout=dt.timedelta(minutes=2),
             retry_policy=retry_policy,
         )

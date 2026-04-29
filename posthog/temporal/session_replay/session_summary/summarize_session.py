@@ -548,27 +548,26 @@ async def ensure_llm_single_session_summary(
 
     asset_id = export_result.asset_id
 
-    # If the asset needs rendering, run the rasterizer as a child workflow
-    if export_result.needs_export:
-        _set_phase(progress, "rendering_video")
-        workflow_id = f"session-video-summary-rasterize_{video_inputs.team_id}_{video_inputs.session_id}"
-        if progress is not None:
-            progress["rasterizer_workflow_id"] = workflow_id
-        await temporalio.workflow.execute_child_workflow(
-            "rasterize-recording",
-            RasterizeRecordingInputs(exported_asset_id=asset_id),
-            id=workflow_id,
-            task_queue=settings.SESSION_REPLAY_TASK_QUEUE,
-            retry_policy=RetryPolicy(maximum_attempts=int(settings.TEMPORAL_WORKFLOW_MAX_ATTEMPTS)),
-            id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
-            execution_timeout=timedelta(minutes=30),
-            search_attributes=TypedSearchAttributes(
-                search_attributes=[
-                    SearchAttributePair(key=POSTHOG_TEAM_ID_KEY, value=video_inputs.team_id),
-                    SearchAttributePair(key=POSTHOG_SESSION_RECORDING_ID_KEY, value=video_inputs.session_id),
-                ]
-            ),
-        )
+    # rasterize-recording self-skips when the existing render still matches.
+    _set_phase(progress, "rendering_video")
+    workflow_id = f"session-video-summary-rasterize_{video_inputs.team_id}_{video_inputs.session_id}"
+    if progress is not None:
+        progress["rasterizer_workflow_id"] = workflow_id
+    await temporalio.workflow.execute_child_workflow(
+        "rasterize-recording",
+        RasterizeRecordingInputs(exported_asset_id=asset_id),
+        id=workflow_id,
+        task_queue=settings.SESSION_REPLAY_TASK_QUEUE,
+        retry_policy=RetryPolicy(maximum_attempts=int(settings.TEMPORAL_WORKFLOW_MAX_ATTEMPTS)),
+        id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
+        execution_timeout=timedelta(minutes=30),
+        search_attributes=TypedSearchAttributes(
+            search_attributes=[
+                SearchAttributePair(key=POSTHOG_TEAM_ID_KEY, value=video_inputs.team_id),
+                SearchAttributePair(key=POSTHOG_SESSION_RECORDING_ID_KEY, value=video_inputs.session_id),
+            ]
+        ),
+    )
 
     # a2: Upload full video to Gemini (single upload)
     _set_phase(progress, "uploading_to_gemini")

@@ -40,16 +40,11 @@ class VideoSummarySingleSessionInputs(BaseModel):
 
 
 class PrepSessionVideoAssetResult(BaseModel):
-    """Result from preparing the session video ExportedAsset.
-
-    Carries forward the Team fields the downstream activities need so they
-    don't have to refetch Team on every step.
-    """
+    """Carries Team fields forward so downstream activities don't refetch Team."""
 
     model_config = ConfigDict(frozen=True)
 
     asset_id: int
-    needs_export: bool
     team_api_token: str
     team_name: str
 

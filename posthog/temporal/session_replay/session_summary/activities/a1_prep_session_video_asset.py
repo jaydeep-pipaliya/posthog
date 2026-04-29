@@ -80,22 +80,28 @@ async def prep_session_video_asset_activity(
             )
             return None
 
-        # Check for existing exported asset for this session
+        # rasterize-recording itself decides whether to re-render based on
+        # the params fingerprint and S3 object presence — A1 just upserts the asset.
         # TODO: Find a way to attach Gemini Files API id to the asset, with an expiration date, so we can reuse it (instead of re-uploading)
         # or remove the video from Files API after processing it (so we don't hit Files API limits)
-        existing_asset = (
-            await ExportedAsset.objects.filter(
-                team_id=inputs.team_id,
-                export_format=FULL_VIDEO_EXPORT_FORMAT,
-                export_context__session_recording_id=inputs.session_id,
-            )
-            .exclude(content_location__isnull=True, content__isnull=True)
-            .afirst()
-        )
+        existing_asset = await ExportedAsset.objects.filter(
+            team_id=inputs.team_id,
+            export_format=FULL_VIDEO_EXPORT_FORMAT,
+            export_context__session_recording_id=inputs.session_id,
+        ).afirst()
 
         if existing_asset:
+            # Refresh the params we control so a constants change triggers re-render via fingerprint mismatch.
+            ctx = dict(existing_asset.export_context or {})
+            ctx["session_recording_id"] = inputs.session_id
+            ctx["playback_speed"] = VIDEO_ANALYSIS_PLAYBACK_SPEED
+            ctx["recording_fps"] = VIDEO_ANALYSIS_RECORDING_FPS
+            ctx["show_metadata_footer"] = True
+            if ctx != existing_asset.export_context:
+                existing_asset.export_context = ctx
+                await existing_asset.asave(update_fields=["export_context"])
             logger.debug(
-                f"Found existing video export for session {inputs.session_id}, reusing asset {existing_asset.id}",
+                f"Reusing existing video export asset {existing_asset.id} for session {inputs.session_id}",
                 session_id=inputs.session_id,
                 asset_id=existing_asset.id,
                 signals_type="session-summaries",
@@ -103,7 +109,6 @@ async def prep_session_video_asset_activity(
             success = True
             return PrepSessionVideoAssetResult(
                 asset_id=existing_asset.id,
-                needs_export=False,
                 team_api_token=team.api_token,
                 team_name=team.name,
             )
@@ -126,7 +131,7 @@ async def prep_session_video_asset_activity(
         )
 
         logger.debug(
-            f"Created ExportedAsset {exported_asset.id} for session {inputs.session_id}, needs video rendering",
+            f"Created ExportedAsset {exported_asset.id} for session {inputs.session_id}",
             session_id=inputs.session_id,
             asset_id=exported_asset.id,
             signals_type="session-summaries",
@@ -135,7 +140,6 @@ async def prep_session_video_asset_activity(
         success = True
         return PrepSessionVideoAssetResult(
             asset_id=exported_asset.id,
-            needs_export=True,
             team_api_token=team.api_token,
             team_name=team.name,
         )
