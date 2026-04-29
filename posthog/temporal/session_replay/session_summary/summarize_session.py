@@ -891,13 +891,9 @@ VIDEO_PROGRESS_POLL_INTERVAL_S = 2.0
 
 
 async def _get_rasterizer_frame_progress(client: Any, rasterizer_workflow_id: str) -> dict[str, Any] | None:
-    """Query the rasterizer child workflow for its phase and read frame-level
-    progress from the currently-running activity's heartbeat details.
-
-    Returns a dict with ``phase`` and optional ``frame_progress`` (``frame``,
-    ``estimatedTotalFrames``), or ``None`` if the child workflow isn't
-    queryable yet or the query fails. Errors are swallowed intentionally —
-    progress reporting must never break the summary flow.
+    """Combine the rasterizer child's `get_progress` query with the in-flight
+    activity's heartbeat details. Errors are swallowed; progress reporting must
+    never break the summary flow.
     """
     try:
         child_handle = client.get_workflow_handle(rasterizer_workflow_id)
@@ -905,7 +901,7 @@ async def _get_rasterizer_frame_progress(client: Any, rasterizer_workflow_id: st
 
         frame_progress: dict[str, Any] | None = None
         desc = await child_handle.describe()
-        # raw_description carries the gRPC payload with encrypted heartbeat details
+        # raw_description carries the gRPC payload with encrypted heartbeat details.
         pending = getattr(desc.raw_description, "pending_activities", None) or []
         if pending:
             raw_payloads = list(pending[0].heartbeat_details.payloads)
@@ -924,6 +920,33 @@ async def _get_rasterizer_frame_progress(client: Any, rasterizer_workflow_id: st
             signals_type="session-summaries",
         )
         return None
+
+
+async def _fetch_summary_progress(client: Any, handle: WorkflowHandle) -> dict[str, Any] | None:
+    """Build the progress payload yielded to SSE clients.
+
+    Returns None if the workflow isn't queryable yet (caller should sleep and retry).
+    The returned dict carries the parent's `get_progress` fields plus a `rasterizer`
+    key that's either the child's combined progress or None.
+    """
+    try:
+        payload: dict[str, Any] = await handle.query("get_progress")
+    except Exception as e:
+        logger.info(
+            "get_progress query failed (workflow may not be ready yet)",
+            workflow_id=handle.id,
+            error=str(e),
+            error_type=type(e).__name__,
+            signals_type="session-summaries",
+        )
+        return None
+
+    rasterizer_workflow_id = payload.get("rasterizer_workflow_id")
+    if payload.get("phase") == "rendering_video" and rasterizer_workflow_id:
+        payload["rasterizer"] = await _get_rasterizer_frame_progress(client, rasterizer_workflow_id)
+    else:
+        payload["rasterizer"] = None
+    return payload
 
 
 async def execute_summarize_session_video_stream(
@@ -1028,26 +1051,10 @@ async def execute_summarize_session_video_stream(
                 )
                 return
 
-            # Workflow is still running — query for structured progress.
-            progress_payload: dict[str, Any]
-            try:
-                progress_payload = await handle.query("get_progress")
-            except Exception as e:
-                logger.info(
-                    "get_progress query failed (workflow may not be ready yet)",
-                    workflow_id=workflow_id,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                    signals_type="session-summaries",
-                )
+            progress_payload = await _fetch_summary_progress(client, handle)
+            if progress_payload is None:
                 await asyncio.sleep(VIDEO_PROGRESS_POLL_INTERVAL_S)
                 continue
-
-            rasterizer_workflow_id = progress_payload.get("rasterizer_workflow_id")
-            if progress_payload.get("phase") == "rendering_video" and rasterizer_workflow_id:
-                progress_payload["rasterizer"] = await _get_rasterizer_frame_progress(client, rasterizer_workflow_id)
-            else:
-                progress_payload["rasterizer"] = None
 
             logger.info(
                 "yielding session-summary-progress event",
