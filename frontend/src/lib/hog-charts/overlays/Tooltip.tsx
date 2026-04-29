@@ -31,7 +31,7 @@ export function Tooltip<Meta = unknown>({
                 }
             },
         }),
-        [context.position.x, placement === 'follow-data' ? context.position.y : null, context.canvasBounds, placement]
+        [context.position.x, placement === 'follow-data' ? context.position.y : null, context.canvasBounds, placement, context.position.y]
     )
 
     const { refs, floatingStyles } = useFloating({
