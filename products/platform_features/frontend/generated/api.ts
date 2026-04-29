@@ -449,8 +449,10 @@ export const membersDestroy = async (
 /**
  * Promote a guest membership to a regular member.
 
-Deletes all `GuestResourceGrant` + mirroring `AccessControl` rows and flips the
-`is_guest` flag. Admin+ only.
+Deletes all `AccessControl` rows scoped to this membership and flips the `is_guest`
+flag. The caller-facing UI should warn that promotion resets the user's access
+controls — after promotion, the new regular member has no explicit AC rows and
+relies on default project access instead. Admin+ only.
  */
 export const getMembersPromoteGuestCreateUrl = (organizationId: string, userUuid: string) => {
     return `/api/organizations/${organizationId}/members/${userUuid}/promote_guest/`
