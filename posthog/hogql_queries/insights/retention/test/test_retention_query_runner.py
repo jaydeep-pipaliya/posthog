@@ -4702,6 +4702,7 @@ class TestRetention(ClickhouseTestMixin, APIBaseTest):
         # Verify the cohort filter was actually merged into query properties
         assert runner.query.properties is not None
 
+    @snapshot_clickhouse_queries
     def test_retention_aggregation_sum(self):
         """Test retention with SUM aggregation on a property"""
         Person.objects.create(team=self.team, distinct_ids=["user1"])
