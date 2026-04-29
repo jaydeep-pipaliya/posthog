@@ -143,10 +143,6 @@ async def find_sessions_for_team_activity(inputs: FindSessionsInput) -> FindSess
 @activity.defn
 async def delete_team_schedule_activity(inputs: DeleteTeamScheduleInput) -> None:
     """Idempotent."""
-    if inputs.dry_run:
-        logger.info("summarization_sweep.dry_run.delete_team_schedule", team_id=inputs.team_id)
-        return
-
     from posthog.temporal.session_replay.summarization_sweep.schedule import a_delete_team_schedule
 
     await a_delete_team_schedule(inputs.team_id)
@@ -201,10 +197,6 @@ async def list_summarization_schedule_team_ids_activity() -> list[int]:
 
 @activity.defn
 async def upsert_team_schedule_activity(inputs: UpsertTeamScheduleInput) -> None:
-    if inputs.dry_run:
-        logger.info("summarization_sweep.dry_run.upsert_team_schedule", team_id=inputs.team_id)
-        return
-
     from posthog.temporal.session_replay.summarization_sweep.schedule import a_upsert_team_schedule
 
     await a_upsert_team_schedule(inputs.team_id)

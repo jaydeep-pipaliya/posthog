@@ -39,5 +39,4 @@ class GeminiFileCleanupSweepWorkflow(PostHogWorkflow):
             "skipped_temporal_error": result.skipped_temporal_error,
             "delete_failed": result.delete_failed,
             "hit_max_files_cap": result.hit_max_files_cap,
-            "dry_run": result.dry_run,
         }

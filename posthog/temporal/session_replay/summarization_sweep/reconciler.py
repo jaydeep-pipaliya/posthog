@@ -67,7 +67,7 @@ class ReconcileSummarizationSchedulesWorkflow(PostHogWorkflow):
                 to_upsert,
                 lambda tid: workflow.execute_activity(
                     upsert_team_schedule_activity,
-                    UpsertTeamScheduleInput(team_id=tid, dry_run=inputs.dry_run),
+                    UpsertTeamScheduleInput(team_id=tid),
                     start_to_close_timeout=UPSERT_SCHEDULE_TIMEOUT,
                     retry_policy=RetryPolicy(maximum_attempts=3),
                 ),
@@ -76,7 +76,7 @@ class ReconcileSummarizationSchedulesWorkflow(PostHogWorkflow):
                 to_delete,
                 lambda tid: workflow.execute_activity(
                     delete_team_schedule_activity,
-                    DeleteTeamScheduleInput(team_id=tid, dry_run=inputs.dry_run),
+                    DeleteTeamScheduleInput(team_id=tid),
                     start_to_close_timeout=UPSERT_SCHEDULE_TIMEOUT,
                     retry_policy=RetryPolicy(maximum_attempts=3),
                 ),
@@ -87,7 +87,6 @@ class ReconcileSummarizationSchedulesWorkflow(PostHogWorkflow):
             deleted_team_ids=[tid for tid, ok in zip(to_delete, delete_results) if ok],
             failed_upsert_team_ids=[tid for tid, ok in zip(to_upsert, upsert_results) if not ok],
             failed_delete_team_ids=[tid for tid, ok in zip(to_delete, delete_results) if not ok],
-            dry_run=inputs.dry_run,
         )
         if result.failed_upsert_team_ids or result.failed_delete_team_ids:
             workflow.logger.warning(
@@ -102,7 +101,6 @@ class ReconcileSummarizationSchedulesWorkflow(PostHogWorkflow):
             "deleted": len(result.deleted_team_ids),
             "failed_upsert": len(result.failed_upsert_team_ids),
             "failed_delete": len(result.failed_delete_team_ids),
-            "dry_run": inputs.dry_run,
         }
 
     async def _fan_out(self, team_ids: list[int], make_coro) -> list[bool]:

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class CleanupSweepInputs:
-    dry_run: bool = False
+    pass
 
 
 @dataclass
@@ -17,4 +17,3 @@ class CleanupSweepResult:
     skipped_temporal_error: int = 0
     delete_failed: int = 0
     hit_max_files_cap: bool = False
-    dry_run: bool = False

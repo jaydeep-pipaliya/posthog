@@ -260,27 +260,6 @@ async def test_skips_on_temporal_rpc_error(activity_environment, fixed_now):
 
 
 @pytest.mark.asyncio
-async def test_dry_run_counts_without_deleting(activity_environment, fixed_now):
-    files = [
-        _file(name="files/one", display_name=_dn(1, "s1"), age=AGE_THRESHOLD * 2),
-        _file(name="files/two", display_name=_dn(1, "s2"), age=AGE_THRESHOLD * 2),
-    ]
-    raw = _StubRawClient(files)
-    tmp = _StubTemporal(
-        {
-            _wid(1, "s1"): _Outcome(status=WorkflowExecutionStatus.COMPLETED),
-            _wid(1, "s2"): _Outcome(status=WorkflowExecutionStatus.COMPLETED),
-        }
-    )
-    p1, p2 = _patch_clients(raw, tmp)
-    with p1, p2:
-        result = await activity_environment.run(sweep_gemini_files_activity, CleanupSweepInputs(dry_run=True))
-    assert result.deleted == 2
-    assert result.dry_run is True
-    assert raw.files.deleted == []  # no real deletes
-
-
-@pytest.mark.asyncio
 async def test_delete_failure_counted_does_not_raise(activity_environment, fixed_now):
     files = [
         _file(name="files/ok", display_name=_dn(1, "s1"), age=AGE_THRESHOLD * 2),

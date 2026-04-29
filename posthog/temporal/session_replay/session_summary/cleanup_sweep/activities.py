@@ -129,17 +129,7 @@ async def sweep_gemini_files_activity(inputs: CleanupSweepInputs) -> CleanupSwee
         skipped_running=skipped_running,
         skipped_temporal_error=skipped_error,
         hit_max_files_cap=hit_cap,
-        dry_run=inputs.dry_run,
     )
-
-    if inputs.dry_run:
-        logger.info(
-            "cleanup_sweep.dry_run.would_delete",
-            count=len(to_delete),
-            listed=listed,
-            signals_type="cleanup-sweep",
-        )
-        return replace(base_result, deleted=len(to_delete))
 
     delete_sem = asyncio.Semaphore(DELETE_CONCURRENCY)
 

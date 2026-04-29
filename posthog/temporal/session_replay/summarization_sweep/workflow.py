@@ -57,23 +57,6 @@ class SummarizeTeamSessionsWorkflow(PostHogWorkflow):
                 "team_id": inputs.team_id,
                 "workflows_started": 0,
                 "workflows_skipped_already_running": 0,
-                "dry_run": inputs.dry_run,
-            }
-
-        if inputs.dry_run:
-            workflow.logger.info(
-                "summarization_sweep.dry_run.would_start_children",
-                extra={
-                    "team_id": inputs.team_id,
-                    "session_ids": result.session_ids,
-                    "user_id": result.user_id,
-                },
-            )
-            return {
-                "team_id": inputs.team_id,
-                "workflows_started": 0,
-                "workflows_skipped_already_running": 0,
-                "dry_run": True,
             }
 
         start_results = await asyncio.gather(
@@ -109,7 +92,6 @@ class SummarizeTeamSessionsWorkflow(PostHogWorkflow):
             "team_id": inputs.team_id,
             "workflows_started": started,
             "workflows_skipped_already_running": skipped,
-            "dry_run": False,
         }
 
     async def _start_child(

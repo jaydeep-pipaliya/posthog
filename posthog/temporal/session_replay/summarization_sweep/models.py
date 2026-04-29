@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 @dataclass
 class SummarizeTeamSessionsInputs:
     team_id: int
-    dry_run: bool = False
 
 
 @dataclass
@@ -25,18 +24,16 @@ class FindSessionsResult:
 @dataclass
 class DeleteTeamScheduleInput:
     team_id: int
-    dry_run: bool = False
 
 
 @dataclass
 class UpsertTeamScheduleInput:
     team_id: int
-    dry_run: bool = False
 
 
 @dataclass
 class ReconcileSchedulesInputs:
-    dry_run: bool = False
+    pass
 
 
 @dataclass
@@ -45,4 +42,3 @@ class ReconcileSchedulesResult:
     deleted_team_ids: list[int] = field(default_factory=list)
     failed_upsert_team_ids: list[int] = field(default_factory=list)
     failed_delete_team_ids: list[int] = field(default_factory=list)
-    dry_run: bool = False

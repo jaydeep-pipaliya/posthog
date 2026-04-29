@@ -26,7 +26,6 @@ async def test_workflow_returns_activity_result_as_dict():
             skipped_temporal_error=1,
             delete_failed=1,
             hit_max_files_cap=False,
-            dry_run=False,
         )
 
     task_queue = str(uuid.uuid4())
@@ -55,5 +54,4 @@ async def test_workflow_returns_activity_result_as_dict():
         "skipped_temporal_error": 1,
         "delete_failed": 1,
         "hit_max_files_cap": False,
-        "dry_run": False,
     }
