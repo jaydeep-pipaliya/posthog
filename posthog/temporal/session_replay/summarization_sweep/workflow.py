@@ -1,8 +1,7 @@
 """Per-team summarization workflow.
 
 Fires from a per-team schedule. Starts a `summarize-session` child per session
-and ABANDONs them so they outlive this short workflow. Self-deletes its own
-schedule if the team has been disabled since the last tick.
+and ABANDONs them so they outlive this short workflow.
 """
 
 import asyncio
@@ -21,11 +20,7 @@ from posthog.temporal.session_replay.summarization_sweep.constants import (
     SESSION_LOOKBACK_MINUTES,
     WORKFLOW_NAME,
 )
-from posthog.temporal.session_replay.summarization_sweep.models import (
-    DeleteTeamScheduleInput,
-    FindSessionsInput,
-    SummarizeTeamSessionsInputs,
-)
+from posthog.temporal.session_replay.summarization_sweep.models import FindSessionsInput, SummarizeTeamSessionsInputs
 
 from ee.hogai.session_summaries.constants import DEFAULT_VIDEO_UNDERSTANDING_MODEL
 
@@ -35,10 +30,7 @@ with workflow.unsafe.imports_passed_through():
 
     from posthog.temporal.session_replay.session_summary.summarize_session import SummarizeSingleSessionWorkflow
     from posthog.temporal.session_replay.session_summary.types.single import SingleSessionSummaryInputs
-    from posthog.temporal.session_replay.summarization_sweep.activities import (
-        delete_team_schedule_activity,
-        find_sessions_for_team_activity,
-    )
+    from posthog.temporal.session_replay.summarization_sweep.activities import find_sessions_for_team_activity
 
 
 @workflow.defn(name=WORKFLOW_NAME)
@@ -60,27 +52,9 @@ class SummarizeTeamSessionsWorkflow(PostHogWorkflow):
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
 
-        if result.team_disabled:
-            # Fast-path so a just-disabled team doesn't do another cycle before
-            # the reconciler cleans up on its next tick.
-            await workflow.execute_activity(
-                delete_team_schedule_activity,
-                args=[DeleteTeamScheduleInput(team_id=inputs.team_id, dry_run=inputs.dry_run)],
-                start_to_close_timeout=timedelta(seconds=30),
-                retry_policy=RetryPolicy(maximum_attempts=3),
-            )
-            return {
-                "team_id": inputs.team_id,
-                "team_disabled": True,
-                "workflows_started": 0,
-                "workflows_skipped_already_running": 0,
-                "dry_run": inputs.dry_run,
-            }
-
         if not result.session_ids or result.user_id is None:
             return {
                 "team_id": inputs.team_id,
-                "team_disabled": False,
                 "workflows_started": 0,
                 "workflows_skipped_already_running": 0,
                 "dry_run": inputs.dry_run,
@@ -97,7 +71,6 @@ class SummarizeTeamSessionsWorkflow(PostHogWorkflow):
             )
             return {
                 "team_id": inputs.team_id,
-                "team_disabled": False,
                 "workflows_started": 0,
                 "workflows_skipped_already_running": 0,
                 "dry_run": True,
@@ -134,7 +107,6 @@ class SummarizeTeamSessionsWorkflow(PostHogWorkflow):
 
         return {
             "team_id": inputs.team_id,
-            "team_disabled": False,
             "workflows_started": started,
             "workflows_skipped_already_running": skipped,
             "dry_run": False,

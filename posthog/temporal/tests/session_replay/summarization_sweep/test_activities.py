@@ -15,25 +15,25 @@ from .conftest import enable_signal_source
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
-async def test_find_sessions_returns_team_disabled_when_no_config(activity_environment, team):
-    """No config row at all → treat as disabled so the workflow tears down its schedule."""
+async def test_find_sessions_returns_empty_when_no_config(activity_environment, team):
     result = await activity_environment.run(
         find_sessions_for_team_activity,
         FindSessionsInput(team_id=team.id, lookback_minutes=30, max_sessions=5),
     )
-    assert result.team_disabled is True
     assert result.session_ids == []
+    assert result.user_id is None
 
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
-async def test_find_sessions_returns_team_disabled_when_config_disabled(activity_environment, team):
+async def test_find_sessions_returns_empty_when_config_disabled(activity_environment, team):
     await sync_to_async(enable_signal_source)(team, enabled=False)
     result = await activity_environment.run(
         find_sessions_for_team_activity,
         FindSessionsInput(team_id=team.id, lookback_minutes=30, max_sessions=5),
     )
-    assert result.team_disabled is True
+    assert result.session_ids == []
+    assert result.user_id is None
 
 
 @pytest.mark.django_db(transaction=True)
@@ -48,7 +48,6 @@ async def test_find_sessions_no_recent_sessions(activity_environment, team):
             find_sessions_for_team_activity,
             FindSessionsInput(team_id=team.id, lookback_minutes=30, max_sessions=5),
         )
-    assert result.team_disabled is False
     assert result.team_id == team.id
     assert result.session_ids == []
     assert result.user_id is None
@@ -155,8 +154,7 @@ async def test_fetch_recent_session_ids_returns_empty_when_no_config(team):
 async def test_find_sessions_handles_config_disabled_between_check_and_ch_query(activity_environment, team):
     """Race: _is_team_enabled returns True, then the config is disabled before
     _load_team_user_and_sessions hits ClickHouse. The helper should return an
-    empty-ish `FindSessionsResult` (not team_disabled=True), which the workflow
-    treats as a no-op cycle rather than firing the self-delete path.
+    empty `FindSessionsResult`, which the workflow treats as a no-op cycle.
     """
     # Pass the enabled check, then race: flip the config to disabled just as the
     # CH-bound helper starts. `fetch_recent_session_ids` re-reads the config and
@@ -190,13 +188,12 @@ async def test_find_sessions_handles_config_disabled_between_check_and_ch_query(
             FindSessionsInput(team_id=team.id, lookback_minutes=30, max_sessions=5),
         )
 
-    assert result.team_disabled is False
     assert result.session_ids == []
 
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.asyncio
-async def test_find_sessions_returns_team_disabled_when_ai_consent_revoked(activity_environment, team):
+async def test_find_sessions_returns_empty_when_ai_consent_revoked(activity_environment, team):
     await sync_to_async(enable_signal_source)(team, enabled=True)
 
     def _revoke() -> None:
@@ -208,7 +205,7 @@ async def test_find_sessions_returns_team_disabled_when_ai_consent_revoked(activ
         find_sessions_for_team_activity,
         FindSessionsInput(team_id=team.id, lookback_minutes=30, max_sessions=5),
     )
-    assert result.team_disabled is True
+    assert result.session_ids == []
 
 
 @pytest.mark.django_db(transaction=True)

@@ -17,8 +17,6 @@ class FindSessionsInput:
 @dataclass
 class FindSessionsResult:
     team_id: int
-    # Distinct from empty session_ids: disabled triggers schedule teardown.
-    team_disabled: bool = False
     session_ids: list[str] = field(default_factory=list)
     user_id: int | None = None
     user_distinct_id: str | None = None

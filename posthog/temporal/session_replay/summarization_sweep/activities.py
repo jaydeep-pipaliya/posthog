@@ -108,10 +108,11 @@ async def _stuck_session_ids(session_ids: list[str]) -> set[str]:
 
 @activity.defn
 async def find_sessions_for_team_activity(inputs: FindSessionsInput) -> FindSessionsResult:
-    """Surfaces `team_disabled=True` so the workflow can tear down its own schedule."""
+    # If the team got disabled between schedule creation and now, return no sessions
+    # and let the reconciler tear down the schedule on its next tick (≤RECONCILER_INTERVAL).
     enabled = await database_sync_to_async(_is_team_summarization_allowed)(inputs.team_id)
     if not enabled:
-        return FindSessionsResult(team_id=inputs.team_id, team_disabled=True)
+        return FindSessionsResult(team_id=inputs.team_id)
 
     team, session_ids, system_user = await database_sync_to_async_pool(_load_team_user_and_sessions)(
         inputs.team_id, inputs.lookback_minutes
