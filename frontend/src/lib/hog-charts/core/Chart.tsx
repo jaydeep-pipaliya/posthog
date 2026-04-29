@@ -55,6 +55,12 @@ export interface ChartProps<Meta = unknown> {
     children?: React.ReactNode
     /** Resolves the y-value for a series at a given index. Defaults to series.data[index]. */
     resolveValue?: ResolveValueFn
+    /** Which axis the categorical-label hit detection runs on. Defaults to 'x'.
+     *  `'y'` is used for horizontal bar charts. */
+    interactionAxis?: 'x' | 'y'
+    /** Used instead of `scales.x` to map labels to a coordinate on `interactionAxis`.
+     *  Useful for bar charts that map labels to band centers, not point positions. */
+    labelToCoord?: (label: string) => number | undefined
 }
 
 export const DEFAULT_MARGINS: ChartMargins = { top: 16, right: 16, bottom: 32, left: 48 }
@@ -72,6 +78,8 @@ export function Chart<Meta = unknown>({
     className,
     children,
     resolveValue,
+    interactionAxis = 'x',
+    labelToCoord,
 }: ChartProps<Meta>): React.ReactElement {
     const {
         xTickFormatter,
@@ -80,7 +88,9 @@ export function Chart<Meta = unknown>({
         hideYAxis = false,
         tooltip: tooltipConfig,
         showCrosshair = false,
+        axisOrientation = 'vertical',
     } = config ?? {}
+    const isHorizontal = axisOrientation === 'horizontal'
     const {
         enabled: showTooltip = true,
         pinnable: pinnableTooltip = false,
@@ -97,6 +107,18 @@ export function Chart<Meta = unknown>({
     const yLabelWidth = useMemo<number>(() => {
         if (hideYAxis) {
             return 0
+        }
+        // Horizontal orientation puts category labels on the y-axis.
+        if (isHorizontal) {
+            let widest = 0
+            for (let i = 0; i < labels.length; i++) {
+                const text = xTickFormatter ? xTickFormatter(labels[i], i) : labels[i]
+                if (text === null) {
+                    continue
+                }
+                widest = Math.max(widest, measureLabelWidth(text))
+            }
+            return widest
         }
         const range = seriesValueRange(series)
         if (range.count === 0) {
@@ -115,7 +137,7 @@ export function Chart<Meta = unknown>({
             widest = Math.max(widest, measureLabelWidth(formatter(t)))
         }
         return widest
-    }, [series, yTickFormatter, hideYAxis])
+    }, [series, yTickFormatter, hideYAxis, isHorizontal, labels, xTickFormatter])
 
     const xLabelHalfWidth = useMemo<number>(() => {
         if (hideXAxis || labels.length === 0) {
@@ -201,6 +223,8 @@ export function Chart<Meta = unknown>({
         pinnable: pinnableTooltip,
         onPointClick,
         resolveValue,
+        interactionAxis,
+        labelToCoord,
     })
 
     useChartDraw({
@@ -304,6 +328,8 @@ export function Chart<Meta = unknown>({
                                     hideXAxis={hideXAxis}
                                     hideYAxis={hideYAxis}
                                     axisColor={theme.axisColor}
+                                    orientation={axisOrientation}
+                                    labelToCoord={labelToCoord}
                                 />
 
                                 {showCrosshair && <Crosshair color={theme.crosshairColor} />}
