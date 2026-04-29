@@ -1927,7 +1927,7 @@ class TestGitHubLinkExisting:
 
         response = client.post(
             f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
-            {"source_integration_id": self.source_integration.id},
+            {"source_team_id": self.source_team.id},
             content_type="application/json",
         )
 
@@ -1937,7 +1937,7 @@ class TestGitHubLinkExisting:
         cloned.refresh_from_db()
         assert cloned.config.get("connecting_user_github_login") == "octocat"
 
-    def test_link_existing_requires_source_id(self, client: HttpClient):
+    def test_link_existing_requires_source_team_id(self, client: HttpClient):
         client.force_login(self.user)
 
         response = client.post(
@@ -1947,13 +1947,13 @@ class TestGitHubLinkExisting:
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "source_integration_id is required" in response.json()["detail"]
+        assert "source_team_id is required" in response.json()["detail"]
 
     @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
     def test_link_existing_rejects_cross_organization(self, mock_from_install, client: HttpClient):
         other_org = Organization.objects.create(name="Other Org")
         other_team = Team.objects.create(organization=other_org, name="Other Team")
-        foreign_integration = Integration.objects.create(
+        Integration.objects.create(
             team=other_team,
             kind="github",
             integration_id="99999",
@@ -1965,18 +1965,19 @@ class TestGitHubLinkExisting:
 
         response = client.post(
             f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
-            {"source_integration_id": foreign_integration.id},
+            {"source_team_id": other_team.id},
             content_type="application/json",
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "not found in your organization" in response.json()["detail"]
+        assert "Source team not found in your organization" in response.json()["detail"]
         mock_from_install.assert_not_called()
 
     @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
-    def test_link_existing_rejects_non_github_source(self, mock_from_install, client: HttpClient):
-        slack_integration = Integration.objects.create(
-            team=self.source_team,
+    def test_link_existing_rejects_team_without_github_integration(self, mock_from_install, client: HttpClient):
+        slack_only_team = Team.objects.create(organization=self.organization, name="Slack Only Team")
+        Integration.objects.create(
+            team=slack_only_team,
             kind="slack",
             config={"team_id": "T123"},
             sensitive_config={"access_token": "xoxb_test"},
@@ -1986,18 +1987,19 @@ class TestGitHubLinkExisting:
 
         response = client.post(
             f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
-            {"source_integration_id": slack_integration.id},
+            {"source_team_id": slack_only_team.id},
             content_type="application/json",
         )
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "not found in your organization" in response.json()["detail"]
+        assert "Source team does not have a GitHub integration" in response.json()["detail"]
         mock_from_install.assert_not_called()
 
     @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
     def test_link_existing_rejects_source_missing_installation_id(self, mock_from_install, client: HttpClient):
-        broken_source = Integration.objects.create(
-            team=self.source_team,
+        broken_team = Team.objects.create(organization=self.organization, name="Broken Team")
+        Integration.objects.create(
+            team=broken_team,
             kind="github",
             integration_id="broken",
             config={},
@@ -2008,7 +2010,7 @@ class TestGitHubLinkExisting:
 
         response = client.post(
             f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
-            {"source_integration_id": broken_source.id},
+            {"source_team_id": broken_team.id},
             content_type="application/json",
         )
 

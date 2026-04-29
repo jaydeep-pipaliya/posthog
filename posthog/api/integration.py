@@ -845,19 +845,22 @@ class IntegrationViewSet(
         This endpoint lets users opt in to reusing an existing GitHub installation that's already
         linked to a sibling team in the same PostHog organization, without going through GitHub.
         """
-        source_integration_id = request.data.get("source_integration_id")
-        if not source_integration_id:
-            raise ValidationError("source_integration_id is required")
+        source_team_id = request.data.get("source_team_id")
+        if not source_team_id:
+            raise ValidationError("source_team_id is required")
 
         try:
-            # nosemgrep: idor-lookup-without-team, idor-taint-user-input-to-model-get -- intentionally cross-team within the caller's organization (org-scoped via team__organization_id=self.organization_id from TeamAndOrgViewSetMixin)
-            source = Integration.objects.select_related("team").get(
-                id=source_integration_id,
-                kind="github",
-                team__organization_id=self.organization_id,
-            )
+            source_team_id_int = int(source_team_id)
+        except (TypeError, ValueError):
+            raise ValidationError("source_team_id must be an integer")
+
+        if not self.organization.teams.filter(id=source_team_id_int).exists():
+            raise ValidationError("Source team not found in your organization")
+
+        try:
+            source = Integration.objects.get(team_id=source_team_id_int, kind="github")
         except Integration.DoesNotExist:
-            raise ValidationError("Source GitHub integration not found in your organization")
+            raise ValidationError("Source team does not have a GitHub integration")
 
         installation_id = (source.config or {}).get("installation_id")
         if not installation_id:
