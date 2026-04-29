@@ -229,7 +229,7 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
             return_entity_expr=self.return_entity_expr,
         )
 
-        if self.property_aggregation_expr:
+        if self.has_property_aggregation:
             # For property aggregation, we need separate handling for start (interval 0) and return events (interval 1+).
             # Tuples are (interval_start, value, actual_timestamp); actual_timestamp is used when start and
             # return events differ to filter interval-0 return events that happen after the start event.
@@ -295,9 +295,7 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
             # start event must have happened in the interval
             is_valid_start_interval = self._is_valid_start_interval_expr()
         retention_value_expr: ast.Expr | None
-        intervals_from_base_expr, retention_value_expr = self._get_intervals_from_base_exprs(
-            has_property_aggregation_aliases=bool(self.property_aggregation_expr and return_event_values)
-        )
+        intervals_from_base_expr, retention_value_expr = self._get_intervals_from_base_exprs()
 
         select_fields: list[ast.Expr] = [
             ast.Alias(alias="actor_id", expr=ast.Field(chain=["events", self.aggregation_target_events_column])),
@@ -312,7 +310,7 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
         # When using aggregation mode, add the grouped data arrays as named aliases BEFORE columns that reference them.
         # This ensures ClickHouse uses the pre-aggregated arrays rather than re-executing the groupArrayIf inside
         # lambda functions, which would otherwise trigger a self-join on the events table and exceed memory limits.
-        if self.property_aggregation_expr and return_event_values:
+        if self.has_property_aggregation:
             start_event_data_raw, return_event_data_raw = return_event_values
             select_fields.append(ast.Alias(alias="_start_event_data", expr=start_event_data_raw))
             select_fields.append(ast.Alias(alias="_return_event_data", expr=return_event_data_raw))
@@ -481,13 +479,11 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
 
         return parse_expr("has(start_event_timestamps, date_range[start_interval_index + 1])")
 
-    def _get_intervals_from_base_exprs(
-        self, has_property_aggregation_aliases: bool = False
-    ) -> tuple[ast.Expr, ast.Expr | None]:
+    def _get_intervals_from_base_exprs(self) -> tuple[ast.Expr, ast.Expr | None]:
         is_first_interval_after_start_event = self._is_first_interval_after_start_event_expr()
         intervals_from_base_array_aggregator = "arrayJoin"
 
-        if self.property_aggregation_expr and has_property_aggregation_aliases:
+        if self.has_property_aggregation:
             # _start_event_data and _return_event_data are added as aliases before intervals_from_base is selected.
             start_event_data_ref = ast.Field(chain=["_start_event_data"])
             return_event_data_ref = ast.Field(chain=["_return_event_data"])
@@ -631,7 +627,7 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
         return_entity_expr: ast.Expr,
         timestamp_field: ast.Expr | None = None,
     ) -> ast.Expr:
-        if self.property_aggregation_expr:
+        if self.has_property_aggregation:
             # Collect 3-tuples of (interval_start, value, actual_timestamp) for return events.
             # actual_timestamp is needed to filter same-interval return events that happen after the start event.
             return parse_expr(
