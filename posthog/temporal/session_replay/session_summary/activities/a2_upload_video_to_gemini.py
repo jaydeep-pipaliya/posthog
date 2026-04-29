@@ -21,7 +21,6 @@ from google.genai import (
 from posthog.schema import ReplayInactivityPeriod
 
 from posthog.models.exported_asset import ExportedAsset
-from posthog.models.team.team import Team
 from posthog.storage import object_storage
 from posthog.temporal.session_replay.session_summary.types.video import (
     UploadedVideo,
@@ -44,14 +43,12 @@ MAX_PROCESSING_WAIT_SECONDS = 300
 async def upload_video_to_gemini_activity(
     inputs: VideoSummarySingleSessionInputs, asset_id: int
 ) -> UploadVideoToGeminiOutput:
-    """Upload full video to Gemini for analysis and return file reference with duration, plus team name"""
+    """Upload full video to Gemini for analysis and return file reference with duration."""
     # display_name is read by the cleanup sweeper. The deployment prefix scopes ownership so that
     # one cluster's sweeper can't delete another cluster's in-use files when they share a Gemini key.
     deployment = settings.CLOUD_DEPLOYMENT or "local"
     display_name = f"{deployment}:{temporalio.activity.info().workflow_id}"
     try:
-        # Fetch team name once here to avoid fetching it 100+ times in parallel segment analysis
-        team_name = (await Team.objects.only("name").aget(id=inputs.team_id)).name
         # Get video bytes from ExportedAsset
         asset = await ExportedAsset.objects.aget(id=asset_id)
 
@@ -134,7 +131,6 @@ async def upload_video_to_gemini_activity(
             inactivity_periods = asset.export_context.get("inactivity_periods") if asset.export_context else None
             return UploadVideoToGeminiOutput(
                 uploaded_video=uploaded_video,
-                team_name=team_name,
                 # Converting to use proper types in calculations
                 inactivity_periods=(
                     None

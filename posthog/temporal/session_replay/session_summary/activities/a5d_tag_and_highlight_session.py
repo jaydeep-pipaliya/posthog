@@ -1,9 +1,9 @@
 """
-Activity 7 of the video-based summarization workflow:
+Post-consolidation fan-out activity:
 Write session tags and highlight flag to ClickHouse via Kafka (fire-and-forget).
-
-The tagging LLM call happens in A4 as a follow-up turn in the same conversation
-that produced the consolidation. This activity only handles the Kafka produce.
+The tagging LLM call happens in a4 as a follow-up turn in the same conversation
+that produced the consolidation; this activity only handles the Kafka produce.
+Runs in parallel with the other a5* siblings after consolidation.
 """
 
 from datetime import timedelta

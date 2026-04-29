@@ -1,6 +1,9 @@
 """
-Activity 6b of the video-based summarization workflow:
-Saving the single session summary.
+Post-consolidation fan-out activity:
+Save the single session summary to Postgres. This is the canonical record —
+its failure fails the whole workflow even though the other a5* siblings
+are best-effort.
+Runs in parallel with the other a5* siblings after consolidation.
 """
 
 import asyncio

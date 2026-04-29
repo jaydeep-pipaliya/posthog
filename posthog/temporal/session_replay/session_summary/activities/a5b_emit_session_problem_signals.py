@@ -1,24 +1,20 @@
 """
-Activity 6a of the video-based summarization workflow:
-Emit signals for consolidated segments that indicate user problems.
-
-Runs after consolidation, emitting problem-indicating segments directly as signals
-instead of relying on the batch clustering pipeline.
+Post-consolidation fan-out activity:
+Emit signals for consolidated segments that indicate user problems, instead of
+relying on the batch clustering pipeline.
+Runs in parallel with the other a5* siblings after consolidation.
 """
 
 import structlog
 import temporalio
 from structlog.contextvars import bind_contextvars
 
-from posthog.models.exported_asset import ExportedAsset
 from posthog.models.team.team import Team
 from posthog.session_recordings.queries.session_replay_events import SessionReplayEvents
 from posthog.sync import database_sync_to_async
 from posthog.temporal.session_replay.session_summary.types.video import SessionProblem, VideoSummarySingleSessionInputs
 
 from products.signals.backend.api import emit_signal
-
-from ee.hogai.session_summaries.constants import FULL_VIDEO_EXPORT_FORMAT
 
 logger = structlog.get_logger(__name__)
 
@@ -27,6 +23,7 @@ logger = structlog.get_logger(__name__)
 async def emit_session_problem_signals_activity(
     inputs: VideoSummarySingleSessionInputs,
     problems: list[SessionProblem],
+    exported_asset_id: int,
 ) -> int:
     """Emit signals for consolidated segments that indicate user problems.
 
@@ -47,18 +44,6 @@ async def emit_session_problem_signals_activity(
         team=team,
     )
 
-    # Find the rasterized video export for this session (created by Activity 1)
-    exported_asset = await (
-        ExportedAsset.objects.filter(
-            team_id=inputs.team_id,
-            export_format=FULL_VIDEO_EXPORT_FORMAT,
-            export_context__session_recording_id=inputs.session_id,
-        )
-        .exclude(content_location__isnull=True, content__isnull=True)
-        .only("id")
-        .afirst()
-    )
-
     signals_emitted = 0
 
     for problem in problems:
@@ -71,15 +56,13 @@ async def emit_session_problem_signals_activity(
             "end_time": problem.end_time,
             "problem_type": problem.problem_type,
             "distinct_id": session_metadata["distinct_id"] if session_metadata else "",
+            "exported_asset_id": exported_asset_id,
         }
         if session_metadata:
             extra["session_start_time"] = session_metadata["start_time"].isoformat()
             extra["session_end_time"] = session_metadata["end_time"].isoformat()
             extra["session_duration"] = session_metadata["duration"]
             extra["session_active_seconds"] = session_metadata["active_seconds"]
-
-        if exported_asset is not None:
-            extra["exported_asset_id"] = exported_asset.id
 
         try:
             await emit_signal(

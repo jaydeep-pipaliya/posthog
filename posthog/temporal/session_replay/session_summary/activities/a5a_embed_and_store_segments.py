@@ -1,7 +1,7 @@
 """
-Activity 5 of the video-based summarization workflow:
-Embedding the meaningful video segments and storing them in ClickHouse.
-(Python modules have to start with a letter, hence the file is prefixed `a5_` instead of `5_`.)
+Post-consolidation fan-out activity:
+Enqueue embedding requests for the meaningful video segments via Kafka.
+Runs in parallel with the other a5* siblings after consolidation.
 """
 
 import structlog

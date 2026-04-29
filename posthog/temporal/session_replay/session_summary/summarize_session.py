@@ -88,7 +88,6 @@ VIDEO_PHASE_ORDER: tuple[str, ...] = (
     "uploading_to_gemini",
     "analyzing_segments",
     "consolidating",
-    "generating_embeddings",
     "saving_summary",
     "cleanup",
 )
@@ -534,7 +533,7 @@ async def ensure_llm_single_session_summary(
         product_context=inputs.product_context,
     )
 
-    # Activity 1: Prepare video export (find or create ExportedAsset)
+    # a1: Prepare video export (find or create ExportedAsset)
     _set_phase(progress, "preparing_video")
     export_result = await temporalio.workflow.execute_activity(
         prep_session_video_asset_activity,
@@ -571,7 +570,7 @@ async def ensure_llm_single_session_summary(
             ),
         )
 
-    # Activity 2: Upload full video to Gemini (single upload)
+    # a2: Upload full video to Gemini (single upload)
     _set_phase(progress, "uploading_to_gemini")
     upload_result = await temporalio.workflow.execute_activity(
         upload_video_to_gemini_activity,
@@ -580,7 +579,7 @@ async def ensure_llm_single_session_summary(
         retry_policy=retry_policy,
     )
     uploaded_video = upload_result["uploaded_video"]
-    team_name = upload_result["team_name"]
+    team_name = export_result.team_name
     inactivity_periods = upload_result["inactivity_periods"]
 
     # Calculate segment specs based on video duration and activity periods
@@ -591,9 +590,9 @@ async def ensure_llm_single_session_summary(
         inactivity_periods=inactivity_periods,
     )
 
-    # Activity 8 (cleanup) must run even if activities 3-7 fail
+    # a6 (cleanup) must run even if a3-a5 fail
     try:
-        # Activity 3: Analyze all segments in parallel (max 100 concurrent to limit blast radius)
+        # a3: Analyze all segments in parallel (max 100 concurrent to limit blast radius)
         _set_phase(progress, "analyzing_segments")
         if progress is not None:
             progress["segments_total"] = len(segment_specs)
@@ -630,7 +629,7 @@ async def ensure_llm_single_session_summary(
                 continue
             raw_segments.extend(cast(list[VideoSegmentOutput], result))
 
-        # Activity 4: Consolidate raw segments into meaningful semantic segments,
+        # a4: Consolidate raw segments into meaningful semantic segments,
         # then tag the session in a follow-up turn of the same conversation
         _set_phase(progress, "consolidating")
         consolidation_output = await temporalio.workflow.execute_activity(
@@ -643,19 +642,13 @@ async def ensure_llm_single_session_summary(
         consolidated_analysis = consolidation_output["consolidated_analysis"]
         tagging = consolidation_output["tagging"]
 
-        # Activity 5: Enqueue embedding requests for each segment via Kafka.
-        # The activity just produces Kafka messages and returns; actual embedding
-        # computation happens asynchronously in the embedding worker.
-        _set_phase(progress, "generating_embeddings")
-        await temporalio.workflow.execute_activity(
-            embed_and_store_segments_activity,
-            args=(video_inputs, consolidated_analysis.segments),
-            start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=retry_policy,
-        )
-
-        # Activities 6a + 6b run in parallel when some segment would emit a problem signal;
-        # otherwise skip 6a entirely.
+        # a5: Post-consolidation fan-out. The four activities below consume
+        # a4's output independently and run in parallel. The store activity
+        # (Postgres write) is the canonical record — its failure is fatal.
+        # The other three (embed/emit/tag) are fire-and-forget side effects
+        # that we log but don't propagate, since a missing tag, embedding,
+        # or signal is preferable to losing the whole summary because Kafka
+        # hiccupped.
         _set_phase(progress, "saving_summary")
         problems = collect_session_problems(consolidated_analysis.segments)
         logger.info(
@@ -669,59 +662,68 @@ async def ensure_llm_single_session_summary(
             will_run_emit_activity=bool(problems),
             signals_type="session-summaries",
         )
-        if problems:
-            emit_result, store_result = await asyncio.gather(
-                temporalio.workflow.execute_activity(
-                    emit_session_problem_signals_activity,
-                    args=(video_inputs, problems),
-                    start_to_close_timeout=timedelta(minutes=5),
-                    retry_policy=retry_policy,
-                ),
-                temporalio.workflow.execute_activity(
-                    store_video_session_summary_activity,
-                    args=(video_inputs, consolidated_analysis, export_result.team_api_token),
-                    start_to_close_timeout=timedelta(minutes=5),
-                    retry_policy=retry_policy,
-                ),
-                return_exceptions=True,
-            )
-            if isinstance(emit_result, Exception):
-                posthoganalytics.capture_exception(
-                    emit_result,
-                    distinct_id=inputs.user_distinct_id_to_log,
-                )
-                logger.exception(
-                    f"Error emitting session problem signals for session {inputs.session_id}: {emit_result}",
-                    signals_type="session-summaries",
-                )
-            if isinstance(store_result, BaseException):
-                raise store_result
-        else:
-            logger.info(
-                "Skipping session problem signals emission activity (no problems found)",
-                team_id=inputs.team_id,
-                session_id=inputs.session_id,
-                workflow_id=trace_id,
-                total_consolidated_segments=len(consolidated_analysis.segments),
-                signals_type="session-summaries",
-            )
-            await temporalio.workflow.execute_activity(
-                store_video_session_summary_activity,
-                args=(video_inputs, consolidated_analysis, export_result.team_api_token),
-                start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=retry_policy,
-            )
 
-        # Activity 7: Write tags and highlight flag to ClickHouse via Kafka
-        _set_phase(progress, "tagging")
-        await temporalio.workflow.execute_activity(
+        embed_coro = temporalio.workflow.execute_activity(
+            embed_and_store_segments_activity,
+            args=(video_inputs, consolidated_analysis.segments),
+            start_to_close_timeout=timedelta(minutes=2),
+            retry_policy=retry_policy,
+        )
+        store_coro = temporalio.workflow.execute_activity(
+            store_video_session_summary_activity,
+            args=(video_inputs, consolidated_analysis, export_result.team_api_token),
+            start_to_close_timeout=timedelta(minutes=5),
+            retry_policy=retry_policy,
+        )
+        tag_coro = temporalio.workflow.execute_activity(
             tag_and_highlight_session_activity,
             args=(video_inputs, tagging),
             start_to_close_timeout=timedelta(minutes=2),
             retry_policy=retry_policy,
         )
+        emit_coro = (
+            temporalio.workflow.execute_activity(
+                emit_session_problem_signals_activity,
+                args=(video_inputs, problems, asset_id),
+                start_to_close_timeout=timedelta(minutes=5),
+                retry_policy=retry_policy,
+            )
+            if problems
+            else None
+        )
+
+        gathered = await asyncio.gather(
+            embed_coro,
+            store_coro,
+            tag_coro,
+            *([emit_coro] if emit_coro is not None else []),
+            return_exceptions=True,
+        )
+        embed_result, store_result, tag_result = gathered[:3]
+        emit_result = gathered[3] if emit_coro is not None else None
+
+        for label, result in (
+            ("embed_and_store_segments", embed_result),
+            ("tag_and_highlight_session", tag_result),
+            ("emit_session_problem_signals", emit_result),
+        ):
+            if isinstance(result, BaseException):
+                posthoganalytics.capture_exception(
+                    result,
+                    distinct_id=inputs.user_distinct_id_to_log,
+                )
+                logger.exception(
+                    f"Error in {label} for session {inputs.session_id}: {result}",
+                    signals_type="session-summaries",
+                )
+
+        # Storage failure is fatal — without the row, the summary is lost
+        # and downstream consumers see tags/embeddings/signals for a session
+        # that never resolves to a stored summary.
+        if isinstance(store_result, BaseException):
+            raise store_result
     finally:
-        # Activity 8: Delete uploaded video from Gemini to free storage quota
+        # a6: Delete uploaded video from Gemini to free storage quota
         _set_phase(progress, "cleanup")
         await temporalio.workflow.execute_activity(
             cleanup_gemini_file_activity,

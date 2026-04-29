@@ -40,13 +40,18 @@ class VideoSummarySingleSessionInputs(BaseModel):
 
 
 class PrepSessionVideoAssetResult(BaseModel):
-    """Result from preparing the session video ExportedAsset."""
+    """Result from preparing the session video ExportedAsset.
+
+    Carries forward the Team fields the downstream activities need so they
+    don't have to refetch Team on every step.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     asset_id: int
     needs_export: bool
     team_api_token: str
+    team_name: str
 
 
 class UploadedVideo(BaseModel):
@@ -61,10 +66,9 @@ class UploadedVideo(BaseModel):
 
 
 class UploadVideoToGeminiOutput(TypedDict):
-    """Return type for upload_video_to_gemini_activity including uploaded video and team name"""
+    """Return type for upload_video_to_gemini_activity."""
 
     uploaded_video: UploadedVideo
-    team_name: str
     # Stored as list of dicts from ReplayInactivityPeriod.model_dump()
     inactivity_periods: list[ReplayInactivityPeriod] | None
 
