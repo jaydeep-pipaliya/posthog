@@ -185,7 +185,7 @@ export const integrationsLogic = kea<integrationsLogicType>([
             }
         },
         handleGithubCallback: async ({ searchParams }) => {
-            const { state, installation_id, code } = searchParams
+            const { state, installation_id, code, setup_action } = searchParams
             const { next, token, source } = fromParamsGivenUrl(state ?? '')
             const stateToken = token || state
 
@@ -209,10 +209,23 @@ export const integrationsLogic = kea<integrationsLogicType>([
                         throw new Error('Invalid state token')
                     }
 
-                    const integration = await api.integrations.create({
-                        kind: 'github',
-                        config: { installation_id, state: stateToken, code },
-                    })
+                    // GitHub omits `code` and emits `setup_action=update` when the App was already
+                    // installed on the org (user lands on Configure → Save). The fresh-install path
+                    // can't run without `code`; fall back to cloning the existing installation
+                    // already linked to a sibling team in this PostHog org.
+                    const isAlreadyInstalled = setup_action === 'update' || !code
+
+                    let integration: IntegrationType
+                    if (isAlreadyInstalled) {
+                        integration = await api.integrations.githubLinkExisting({
+                            installation_id: String(installation_id),
+                        })
+                    } else {
+                        integration = await api.integrations.create({
+                            kind: 'github',
+                            config: { installation_id, state: stateToken, code },
+                        })
+                    }
 
                     // Forward the ids so the `next` landing page (e.g. the PostHog Code
                     // deep link) knows which install was just completed.

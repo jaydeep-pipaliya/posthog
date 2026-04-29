@@ -846,21 +846,40 @@ class IntegrationViewSet(
         linked to a sibling team in the same PostHog organization, without going through GitHub.
         """
         source_team_id = request.data.get("source_team_id")
-        if not source_team_id:
-            raise ValidationError("source_team_id is required")
+        installation_id_param = request.data.get("installation_id")
 
-        try:
-            source_team_id_int = int(source_team_id)
-        except (TypeError, ValueError):
-            raise ValidationError("source_team_id must be an integer")
+        if source_team_id:
+            try:
+                source_team_id_int = int(source_team_id)
+            except (TypeError, ValueError):
+                raise ValidationError("source_team_id must be an integer")
 
-        if not self.organization.teams.filter(id=source_team_id_int).exists():
-            raise ValidationError("Source team not found in your organization")
+            if not self.organization.teams.filter(id=source_team_id_int).exists():
+                raise ValidationError("Source team not found in your organization")
 
-        try:
-            source = Integration.objects.get(team_id=source_team_id_int, kind="github")
-        except Integration.DoesNotExist:
-            raise ValidationError("Source team does not have a GitHub integration")
+            try:
+                source = Integration.objects.get(team_id=source_team_id_int, kind="github")
+            except Integration.DoesNotExist:
+                raise ValidationError("Source team does not have a GitHub integration")
+        elif installation_id_param:
+            # Installation-id branch: lets the GitHub callback auto-link when the App is already
+            # installed on the GitHub org and another team in the PostHog org has captured it.
+            if not re.fullmatch(r"\d{1,20}", str(installation_id_param)):
+                raise ValidationError("Invalid installation_id")
+
+            source = (
+                Integration.objects.filter(
+                    team__organization_id=self.organization_id,
+                    kind="github",
+                    config__installation_id=str(installation_id_param),
+                )
+                .order_by("id")
+                .first()
+            )
+            if source is None:
+                raise ValidationError("No team in your organization has this GitHub installation linked")
+        else:
+            raise ValidationError("source_team_id or installation_id is required")
 
         installation_id = (source.config or {}).get("installation_id")
         if not installation_id:

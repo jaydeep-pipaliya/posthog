@@ -5668,6 +5668,12 @@ const api = {
         ): Promise<GitHubReposResponseApi> {
             return await new ApiRequest().integrationGitHubRepositories(id).withQueryString(params).get()
         },
+        async githubLinkExisting(data: {
+            source_team_id?: number
+            installation_id?: string | number
+        }): Promise<IntegrationType> {
+            return await new ApiRequest().integrations().withAction('github/link_existing').create({ data })
+        },
         async jiraProjects(id: IntegrationType['id']): Promise<{ projects: JiraProjectType[] }> {
             return await new ApiRequest().integrationJiraProjects(id).get()
         },
