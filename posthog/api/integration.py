@@ -511,7 +511,15 @@ class IntegrationViewSet(
         "github_repos",
         "github_branches",
     ]
-    scope_object_write_actions = ["create", "update", "partial_update", "patch", "destroy", "refresh_github_repos"]
+    scope_object_write_actions = [
+        "create",
+        "update",
+        "partial_update",
+        "patch",
+        "destroy",
+        "refresh_github_repos",
+        "github_link_existing",
+    ]
     permission_classes = [TeamMemberStrictManagementPermission]
     queryset = defer_repository_cache_fields(Integration.objects.all())
     serializer_class = IntegrationSerializer
@@ -826,6 +834,41 @@ class IntegrationViewSet(
         repositories, has_more = github.list_cached_repositories(search=search, limit=limit, offset=offset)
 
         return Response({"repositories": repositories, "has_more": has_more})
+
+    @action(methods=["POST"], detail=False, url_path="github/link_existing")
+    def github_link_existing(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """Clone a GitHub Integration row from another team in the same organization onto the current team.
+
+        GitHub's installation flow has no usable callback when the App is already installed on the
+        target org (the user lands on the Configure page and there is no automatic redirect back).
+        This endpoint lets users opt in to reusing an existing GitHub installation that's already
+        linked to a sibling team in the same PostHog organization, without going through GitHub.
+        """
+        source_integration_id = request.data.get("source_integration_id")
+        if not source_integration_id:
+            raise ValidationError("source_integration_id is required")
+
+        try:
+            source = Integration.objects.select_related("team").get(
+                id=source_integration_id,
+                kind="github",
+                team__organization_id=self.organization_id,
+            )
+        except Integration.DoesNotExist:
+            raise ValidationError("Source GitHub integration not found in your organization")
+
+        installation_id = (source.config or {}).get("installation_id")
+        if not installation_id:
+            raise ValidationError("Source integration is missing installation_id")
+
+        instance = GitHubIntegration.integration_from_installation_id(str(installation_id), self.team_id, request.user)
+
+        source_login = (source.config or {}).get("connecting_user_github_login")
+        if source_login and not (instance.config or {}).get("connecting_user_github_login"):
+            instance.config["connecting_user_github_login"] = source_login
+            instance.save(update_fields=["config"])
+
+        return Response(self.get_serializer(instance).data)
 
     @extend_schema(request=None, responses={200: GitHubReposRefreshResponseSerializer})
     @action(methods=["POST"], detail=True, url_path="github_repos/refresh")

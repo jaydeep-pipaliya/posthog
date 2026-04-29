@@ -1872,3 +1872,146 @@ class TestGitHubBranches:
         assert first == "develop"
         assert second == "develop"
         assert mock_get.call_count == 1
+
+
+class TestGitHubLinkExisting:
+    """Tests for POST /integrations/github/link_existing/ — clones a GitHub Integration
+    row from another team in the same organization onto the current team without
+    going through the GitHub install flow.
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_environment(self, db):
+        self.organization = Organization.objects.create(name="Test Org")
+        self.source_team = Team.objects.create(organization=self.organization, name="Source Team")
+        self.dest_team = Team.objects.create(organization=self.organization, name="Dest Team")
+        self.user = User.objects.create_and_join(
+            self.organization, "test@posthog.com", "test", level=OrganizationMembership.Level.ADMIN
+        )
+
+        self.source_integration = Integration.objects.create(
+            team=self.source_team,
+            kind="github",
+            integration_id="12345",
+            config={
+                "installation_id": "12345",
+                "expires_in": 3600,
+                "refreshed_at": int(time.time()),
+                "repository_selection": "all",
+                "account": {"type": "Organization", "name": "acme"},
+                "connecting_user_github_login": "octocat",
+            },
+            sensitive_config={"access_token": "ghs_source"},
+            created_by=self.user,
+        )
+
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_clones_integration_to_dest_team(self, mock_from_install, client: HttpClient):
+        client.force_login(self.user)
+
+        cloned = Integration.objects.create(
+            team=self.dest_team,
+            kind="github",
+            integration_id="12345",
+            config={
+                "installation_id": "12345",
+                "expires_in": 3600,
+                "refreshed_at": int(time.time()),
+                "repository_selection": "all",
+                "account": {"type": "Organization", "name": "acme"},
+            },
+            sensitive_config={"access_token": "ghs_cloned"},
+            created_by=self.user,
+        )
+        mock_from_install.return_value = cloned
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_integration_id": self.source_integration.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_from_install.assert_called_once_with("12345", self.dest_team.pk, self.user)
+
+        cloned.refresh_from_db()
+        assert cloned.config.get("connecting_user_github_login") == "octocat"
+
+    def test_link_existing_requires_source_id(self, client: HttpClient):
+        client.force_login(self.user)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "source_integration_id is required" in response.json()["detail"]
+
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_rejects_cross_organization(self, mock_from_install, client: HttpClient):
+        other_org = Organization.objects.create(name="Other Org")
+        other_team = Team.objects.create(organization=other_org, name="Other Team")
+        foreign_integration = Integration.objects.create(
+            team=other_team,
+            kind="github",
+            integration_id="99999",
+            config={"installation_id": "99999"},
+            sensitive_config={"access_token": "ghs_foreign"},
+        )
+
+        client.force_login(self.user)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_integration_id": foreign_integration.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "not found in your organization" in response.json()["detail"]
+        mock_from_install.assert_not_called()
+
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_rejects_non_github_source(self, mock_from_install, client: HttpClient):
+        slack_integration = Integration.objects.create(
+            team=self.source_team,
+            kind="slack",
+            config={"team_id": "T123"},
+            sensitive_config={"access_token": "xoxb_test"},
+        )
+
+        client.force_login(self.user)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_integration_id": slack_integration.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "not found in your organization" in response.json()["detail"]
+        mock_from_install.assert_not_called()
+
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_rejects_source_missing_installation_id(self, mock_from_install, client: HttpClient):
+        broken_source = Integration.objects.create(
+            team=self.source_team,
+            kind="github",
+            integration_id="broken",
+            config={},
+            sensitive_config={},
+        )
+
+        client.force_login(self.user)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_integration_id": broken_source.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "missing installation_id" in response.json()["detail"]
+        mock_from_install.assert_not_called()
