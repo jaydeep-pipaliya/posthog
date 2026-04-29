@@ -595,6 +595,7 @@ quality:
     lint:feature-flags:fix:
         cmd: node bin/lint-feature-flag-sorting.mjs --fix
         description: Auto-sort FEATURE_FLAGS in constants.tsx alphabetically
+    lint:workflows: null # Click-defined; lints .github/workflows/** for repo conventions
     format:mcp:
         cmd: pnpm run --filter @posthog/mcp format
         description: Format MCP files

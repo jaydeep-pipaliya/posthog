@@ -57,6 +57,7 @@ from . import (  # noqa: F401
     quickstart,
     telemetry_commands,
     test_runner,
+    workflow_lint,
 )
 from .devenv import cli as devenv_cli  # noqa: F401
 from .migrations import _compute_migration_diff, _get_cached_migration
