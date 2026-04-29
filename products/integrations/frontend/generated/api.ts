@@ -569,6 +569,31 @@ export const integrationsDomainConnectCheckRetrieve = async (
 }
 
 /**
+ * Clone a GitHub Integration row from another team in the same organization onto the current team.
+
+GitHub's installation flow has no usable callback when the App is already installed on the
+target org (the user lands on the Configure page and there is no automatic redirect back).
+This endpoint lets users opt in to reusing an existing GitHub installation that's already
+linked to a sibling team in the same PostHog organization, without going through GitHub.
+ */
+export const getIntegrationsGithubLinkExistingCreateUrl = (projectId: string) => {
+    return `/api/projects/${projectId}/integrations/github/link_existing/`
+}
+
+export const integrationsGithubLinkExistingCreate = async (
+    projectId: string,
+    integrationConfigApi: NonReadonly<IntegrationConfigApi>,
+    options?: RequestInit
+): Promise<void> => {
+    return apiMutator<void>(getIntegrationsGithubLinkExistingCreateUrl(projectId), {
+        ...options,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...options?.headers },
+        body: JSON.stringify(integrationConfigApi),
+    })
+}
+
+/**
  * `/api/users/@me/integrations/` — manage the user's personal GitHub integrations.
  * @summary List personal GitHub integrations
  */
