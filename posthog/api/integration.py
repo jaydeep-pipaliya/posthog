@@ -27,6 +27,7 @@ from posthog.api.utils import action
 from posthog.auth import OAuthAccessTokenAuthentication, PersonalAPIKeyAuthentication
 from posthog.domain_connect import discover_domain_connect, extract_root_domain_and_host, get_available_providers
 from posthog.exceptions_capture import capture_exception
+from posthog.models import User
 from posthog.models.instance_setting import get_instance_setting
 from posthog.models.integration import (
     ERROR_TOKEN_REFRESH_FAILED,
@@ -849,6 +850,7 @@ class IntegrationViewSet(
             raise ValidationError("source_integration_id is required")
 
         try:
+            # nosemgrep: idor-lookup-without-team, idor-taint-user-input-to-model-get -- intentionally cross-team within the caller's organization (org-scoped via team__organization_id=self.organization_id from TeamAndOrgViewSetMixin)
             source = Integration.objects.select_related("team").get(
                 id=source_integration_id,
                 kind="github",
@@ -861,7 +863,9 @@ class IntegrationViewSet(
         if not installation_id:
             raise ValidationError("Source integration is missing installation_id")
 
-        instance = GitHubIntegration.integration_from_installation_id(str(installation_id), self.team_id, request.user)
+        instance = GitHubIntegration.integration_from_installation_id(
+            str(installation_id), self.team_id, cast(User, request.user)
+        )
 
         source_login = (source.config or {}).get("connecting_user_github_login")
         if source_login and not (instance.config or {}).get("connecting_user_github_login"):
