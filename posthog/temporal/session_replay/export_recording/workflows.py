@@ -1,4 +1,3 @@
-import json
 import asyncio
 from datetime import timedelta
 
@@ -19,9 +18,7 @@ from posthog.temporal.session_replay.export_recording.types import ExportRecordi
 
 @workflow.defn(name="export-recording")
 class ExportRecordingWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(input: list[str]) -> ExportRecordingInput:
-        return ExportRecordingInput(**json.loads(input[0]))
+    inputs_cls = ExportRecordingInput
 
     @workflow.run
     async def run(self, input: ExportRecordingInput) -> None:

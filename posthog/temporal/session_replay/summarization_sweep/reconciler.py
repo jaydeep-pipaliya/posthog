@@ -6,7 +6,6 @@ RPC per enabled team per minute. Recreate schedules manually if `_build_schedule
 changes and needs to apply to existing ones.
 """
 
-import json
 import asyncio
 from typing import Any
 
@@ -39,11 +38,8 @@ with workflow.unsafe.imports_passed_through():
 
 @workflow.defn(name=RECONCILER_WORKFLOW_NAME)
 class ReconcileSummarizationSchedulesWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> ReconcileSchedulesInputs:
-        if not inputs:
-            return ReconcileSchedulesInputs()
-        return ReconcileSchedulesInputs(**json.loads(inputs[0]))
+    inputs_cls = ReconcileSchedulesInputs
+    inputs_optional = True
 
     @workflow.run
     async def run(self, inputs: ReconcileSchedulesInputs) -> dict[str, Any]:

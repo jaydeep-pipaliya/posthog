@@ -277,6 +277,8 @@ MAX_STATUS_HISTORY = 50
 
 @temporalio.workflow.defn(name="summarize-session-group")
 class SummarizeSessionGroupWorkflow(PostHogWorkflow):
+    inputs_cls = SessionGroupSummaryInputs
+
     def __init__(self) -> None:
         super().__init__()
         self._total_sessions = 0
@@ -323,12 +325,6 @@ class SummarizeSessionGroupWorkflow(PostHogWorkflow):
         self._current_status.append(
             f"Generating a report from analyzed patterns and sessions. Almost there ({self._pattern_assignments_completed}/{self._total_sessions})"
         )
-
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> SessionGroupSummaryInputs:
-        """Parse inputs from the management command CLI."""
-        loaded = json.loads(inputs[0])
-        return SessionGroupSummaryInputs(**loaded)
 
     @staticmethod
     async def _fetch_session_batch_data(inputs: SessionGroupSummaryInputs) -> SessionBatchFetchOutput | Exception:

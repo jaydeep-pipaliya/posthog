@@ -1,4 +1,3 @@
-import json
 import asyncio
 from datetime import timedelta
 from itertools import batched
@@ -105,10 +104,7 @@ def _build_certificate(
 
 @workflow.defn(name="delete-recordings-with-person")
 class DeleteRecordingsWithPersonWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(input: list[str]) -> RecordingsWithPersonInput:
-        loaded = json.loads(input[0])
-        return RecordingsWithPersonInput(**loaded)
+    inputs_cls = RecordingsWithPersonInput
 
     @workflow.run
     async def run(self, input: RecordingsWithPersonInput) -> DeletionCertificate:
@@ -155,10 +151,7 @@ class DeleteRecordingsWithPersonWorkflow(PostHogWorkflow):
 
 @workflow.defn(name="delete-recordings-with-team")
 class DeleteRecordingsWithTeamWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(input: list[str]) -> RecordingsWithTeamInput:
-        loaded = json.loads(input[0])
-        return RecordingsWithTeamInput(**loaded)
+    inputs_cls = RecordingsWithTeamInput
 
     @workflow.run
     async def run(self, input: RecordingsWithTeamInput) -> DeletionCertificate:
@@ -202,10 +195,7 @@ class DeleteRecordingsWithTeamWorkflow(PostHogWorkflow):
 
 @workflow.defn(name="delete-recordings-with-query")
 class DeleteRecordingsWithQueryWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(input: list[str]) -> RecordingsWithQueryInput:
-        loaded = json.loads(input[0])
-        return RecordingsWithQueryInput(**loaded)
+    inputs_cls = RecordingsWithQueryInput
 
     @workflow.run
     async def run(self, input: RecordingsWithQueryInput) -> DeletionCertificate:
@@ -252,10 +242,7 @@ class DeleteRecordingsWithQueryWorkflow(PostHogWorkflow):
 
 @workflow.defn(name="delete-recordings-with-session-ids")
 class DeleteRecordingsWithSessionIdsWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(input: list[str]) -> RecordingsWithSessionIdsInput:
-        loaded = json.loads(input[0])
-        return RecordingsWithSessionIdsInput(**loaded)
+    inputs_cls = RecordingsWithSessionIdsInput
 
     @workflow.run
     async def run(self, input: RecordingsWithSessionIdsInput) -> DeletionCertificate:
@@ -316,10 +303,7 @@ class PurgeDeletedRecordingMetadataWorkflow(PostHogWorkflow):
     This workflow runs nightly to clean up that metadata after a grace period has passed.
     """
 
-    @staticmethod
-    def parse_inputs(input: list[str]) -> PurgeDeletedMetadataInput:
-        loaded = json.loads(input[0])
-        return PurgeDeletedMetadataInput(**loaded)
+    inputs_cls = PurgeDeletedMetadataInput
 
     @workflow.run
     async def run(self, input: PurgeDeletedMetadataInput) -> PurgeDeletedMetadataResult:

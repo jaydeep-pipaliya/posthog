@@ -1,4 +1,3 @@
-import json
 from typing import Any
 
 from temporalio import workflow
@@ -18,11 +17,8 @@ with workflow.unsafe.imports_passed_through():
 
 @workflow.defn(name=WORKFLOW_NAME)
 class GeminiFileCleanupSweepWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> CleanupSweepInputs:
-        if not inputs:
-            return CleanupSweepInputs()
-        return CleanupSweepInputs(**json.loads(inputs[0]))
+    inputs_cls = CleanupSweepInputs
+    inputs_optional = True
 
     @workflow.run
     async def run(self, inputs: CleanupSweepInputs) -> dict[str, Any]:

@@ -1,4 +1,3 @@
-import json
 import datetime as dt
 from typing import Any
 
@@ -21,6 +20,8 @@ from .types import (
 
 @wf.defn(name="rasterize-recording")
 class RasterizeRecordingWorkflow(PostHogWorkflow):
+    inputs_cls = RasterizeRecordingInputs
+
     def __init__(self) -> None:
         self._phase: str = "preparing"
 
@@ -32,10 +33,6 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
         heartbeats — read those via `describe().pending_activities`.
         """
         return {"phase": self._phase}
-
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> RasterizeRecordingInputs:
-        return RasterizeRecordingInputs(**json.loads(inputs[0]))
 
     @wf.run
     async def run(self, inputs: RasterizeRecordingInputs) -> RasterizationActivityOutput:

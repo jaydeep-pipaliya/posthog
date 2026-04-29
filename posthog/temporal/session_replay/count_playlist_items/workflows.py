@@ -1,4 +1,3 @@
-import json
 import asyncio
 from datetime import timedelta
 
@@ -16,9 +15,7 @@ from posthog.temporal.session_replay.count_playlist_items.types import CountPlay
 
 @temporalio.workflow.defn(name="count-all-playlists")
 class CountAllPlaylistsWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> None:
-        return None
+    # Takes no input — base default returns None when inputs_cls is unset.
 
     @temporalio.workflow.run
     async def run(self, input: None = None) -> None:
@@ -76,10 +73,7 @@ class CountAllPlaylistsWorkflow(PostHogWorkflow):
 
 @temporalio.workflow.defn(name="count-playlist")
 class CountPlaylistWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> CountPlaylistInput:
-        loaded = json.loads(inputs[0])
-        return CountPlaylistInput(**loaded)
+    inputs_cls = CountPlaylistInput
 
     @temporalio.workflow.run
     async def run(self, input: CountPlaylistInput) -> None:

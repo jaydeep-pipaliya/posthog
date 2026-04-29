@@ -5,7 +5,6 @@ and ABANDONs them so they outlive this short workflow. Self-deletes its own
 schedule if the team has been disabled since the last tick.
 """
 
-import json
 import asyncio
 from datetime import timedelta
 from typing import Any
@@ -44,9 +43,7 @@ with workflow.unsafe.imports_passed_through():
 
 @workflow.defn(name=WORKFLOW_NAME)
 class SummarizeTeamSessionsWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> SummarizeTeamSessionsInputs:
-        return SummarizeTeamSessionsInputs(**json.loads(inputs[0]))
+    inputs_cls = SummarizeTeamSessionsInputs
 
     @workflow.run
     async def run(self, inputs: SummarizeTeamSessionsInputs) -> dict[str, Any]:

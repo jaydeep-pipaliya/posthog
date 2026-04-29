@@ -284,6 +284,8 @@ async def get_llm_single_session_summary_activity(
 
 @temporalio.workflow.defn(name="summarize-session")
 class SummarizeSingleSessionWorkflow(PostHogWorkflow):
+    inputs_cls = SingleSessionSummaryInputs
+
     @classmethod
     def workflow_id_for(cls, team_id: int, session_id: str) -> str:
         """Stable Temporal workflow id (per team and session)."""
@@ -309,12 +311,6 @@ class SummarizeSingleSessionWorkflow(PostHogWorkflow):
         """
         # Copy so Temporal can serialize the snapshot without races.
         return cast(SingleSessionProgress, dict(self._progress))
-
-    @staticmethod
-    def parse_inputs(inputs: list[str]) -> SingleSessionSummaryInputs:
-        """Parse inputs from the management command CLI."""
-        loaded = json.loads(inputs[0])
-        return SingleSessionSummaryInputs(**loaded)
 
     @temporalio.workflow.run
     async def run(self, inputs: SingleSessionSummaryInputs) -> None:

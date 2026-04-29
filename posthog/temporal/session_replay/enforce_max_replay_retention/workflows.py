@@ -1,4 +1,3 @@
-import json
 from datetime import timedelta
 
 from temporalio import common, workflow
@@ -10,11 +9,7 @@ from posthog.temporal.session_replay.enforce_max_replay_retention.types import E
 
 @workflow.defn(name="enforce-max-replay-retention")
 class EnforceMaxReplayRetentionWorkflow(PostHogWorkflow):
-    @staticmethod
-    def parse_inputs(input: list[str]) -> EnforceMaxReplayRetentionInput:
-        """Parse input from the management command CLI."""
-        loaded = json.loads(input[0])
-        return EnforceMaxReplayRetentionInput(**loaded)
+    inputs_cls = EnforceMaxReplayRetentionInput
 
     @workflow.run
     async def run(self, input: EnforceMaxReplayRetentionInput) -> None:
