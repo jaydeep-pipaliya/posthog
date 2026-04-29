@@ -269,6 +269,22 @@ function normalizeRawQuerySource(source: HogQLQuery): HogQLQuery {
     }
 }
 
+// `tags` is a non-semantic side-channel (e.g. `scene` for ClickHouse query tagging).
+// Strip it before structural comparisons to keep the "dirty insight" check accurate.
+function stripQueryTags<T>(query: T): T {
+    if (!query || typeof query !== 'object') {
+        return query
+    }
+    const next: any = { ...(query as any) }
+    if ('tags' in next) {
+        delete next.tags
+    }
+    if (next.source && typeof next.source === 'object') {
+        next.source = stripQueryTags(next.source)
+    }
+    return next as T
+}
+
 function sanitizeSourceQuery(sourceQuery: DataVisualizationNode): DataVisualizationNode {
     const { connectionId: _ignoredConnectionId, ...sanitizedSourceQuery } = sourceQuery as LegacyDataVisualizationNode
 
@@ -2157,13 +2173,18 @@ export const sqlEditorLogic = kea<sqlEditorLogicType>([
                 const updatedName = activeTab?.name !== editingInsight.name
                 const currentVisualizationQuery = getCurrentVisualizationQuery(dataLogicKey, sourceQuery)
 
-                const sourceQueryWithoutUndefinedAndNullKeys = removeUndefinedAndNull(currentVisualizationQuery)
+                const sourceQueryWithoutUndefinedAndNullKeys = stripQueryTags(
+                    removeUndefinedAndNull(currentVisualizationQuery)
+                )
                 // Normalize so DataTableNode-based insights don't look "changed" immediately after load.
                 const editingInsightQuery = toDataVisualizationNode(editingInsight.query) ?? editingInsight.query
 
                 return (
                     updatedName ||
-                    !equal(sourceQueryWithoutUndefinedAndNullKeys, removeUndefinedAndNull(editingInsightQuery))
+                    !equal(
+                        sourceQueryWithoutUndefinedAndNullKeys,
+                        stripQueryTags(removeUndefinedAndNull(editingInsightQuery))
+                    )
                 )
             },
         ],
