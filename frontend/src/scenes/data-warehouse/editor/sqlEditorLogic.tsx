@@ -265,6 +265,7 @@ function normalizeRawQuerySource(source: HogQLQuery): HogQLQuery {
     return {
         ...source,
         sendRawQuery: source.connectionId ? source.sendRawQuery || undefined : undefined,
+        tags: { ...source.tags, scene: Scene.SQLEditor },
     }
 }
 
