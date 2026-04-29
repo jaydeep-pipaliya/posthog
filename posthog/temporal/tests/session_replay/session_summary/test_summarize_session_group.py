@@ -45,7 +45,10 @@ from posthog.temporal.session_replay.session_summary.state import (
     get_redis_state_client,
     store_data_in_redis,
 )
-from posthog.temporal.session_replay.session_summary.summarize_session import get_llm_single_session_summary_activity
+from posthog.temporal.session_replay.session_summary.summarize_session import (
+    check_summary_exists_activity,
+    get_llm_single_session_summary_activity,
+)
 from posthog.temporal.session_replay.session_summary.summarize_session_group import (
     SessionGroupSummaryInputs,
     SummarizeSessionGroupWorkflow,
@@ -902,6 +905,7 @@ class TestSummarizeSessionGroupWorkflow:
                     task_queue=settings.GENERAL_PURPOSE_TASK_QUEUE,
                     workflows=[*AI_WORKFLOWS, *SESSION_SUMMARY_WORKFLOWS],
                     activities=[
+                        check_summary_exists_activity,
                         get_llm_single_session_summary_activity,
                         extract_session_group_patterns_activity,
                         assign_events_to_patterns_activity,

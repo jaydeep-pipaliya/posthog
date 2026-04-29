@@ -108,21 +108,24 @@ def _set_phase(progress: SingleSessionProgress | None, phase: str) -> None:
 
 
 @temporalio.activity.defn
-async def fetch_session_data_activity(inputs: SingleSessionSummaryInputs) -> bool:
-    """Fetch data from DB for a single session and store/cache in Redis (to avoid hitting Temporal memory limits).
-    Returns True if the data was fetched successfully, False if the session has no associated events (probably static).
-    """
-    # Check if the summary is already in the DB, so no need to fetch data from DB
-    # Keeping thread-sensitive as checking for a single summary should be fast
+async def check_summary_exists_activity(inputs: SingleSessionSummaryInputs) -> bool:
+    """Workflow-entry guard: short-circuits the rest of the flow when a summary
+    already exists. Lets us skip the parallel a5* fan-out (which would otherwise
+    re-emit Kafka messages for embeddings/signals/tags) on retried runs."""
     summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
         team_id=inputs.team_id,
         session_ids=[inputs.session_id],
         extra_summary_context=inputs.extra_summary_context,
     )
-    if summary_exists.get(inputs.session_id):
-        # Skip data fetching as the ready summary will be returned in the next activity
-        return True
-    # If not - check if DB data is already in Redis. If it is and matched the target class - it's within TTL, so no need to re-fetch it from DB
+    return bool(summary_exists.get(inputs.session_id))
+
+
+@temporalio.activity.defn
+async def fetch_session_data_activity(inputs: SingleSessionSummaryInputs) -> bool:
+    """Fetch data from DB for a single session and store/cache in Redis (to avoid hitting Temporal memory limits).
+    Returns True if the data was fetched successfully, False if the session has no associated events (probably static).
+    """
+    # If DB data is already in Redis and matches the target class - it's within TTL, so no need to re-fetch it from DB
     redis_client, redis_input_key, _ = get_redis_state_client(
         key_base=inputs.redis_key_base,
         input_label=StateActivitiesEnum.SESSION_DB_DATA,
@@ -214,16 +217,6 @@ async def get_llm_single_session_summary_activity(
     inputs: SingleSessionSummaryInputs,
 ) -> None:
     """Summarize a single session in one call and store/cache in Redis (to avoid hitting Temporal memory limits)"""
-    # Check if summary is already in the DB (in case of race conditions/multiple group summaries running in parallel/etc.)
-    # Keeping thread-sensitive as checking for a single summary should be fast
-    summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
-        team_id=inputs.team_id,
-        session_ids=[inputs.session_id],
-        extra_summary_context=inputs.extra_summary_context,
-    )
-    if summary_exists.get(inputs.session_id):
-        # Stored successfully, no need to summarize again
-        return None
     # Base key includes session ids, so when summarizing this session again, but with different inputs (or order) - we don't use cache
     redis_client, redis_input_key, _ = get_redis_state_client(
         key_base=inputs.redis_key_base,
@@ -505,6 +498,18 @@ async def ensure_llm_single_session_summary(
     """
     retry_policy = RetryPolicy(maximum_attempts=3)
     trace_id = temporalio.workflow.info().workflow_id
+
+    # Bail before any LLM work if a previous run produced a summary. Must run
+    # before the parallel a5* fan-out (video flow) — otherwise embeddings,
+    # signals, and tags would be re-emitted to Kafka on retried runs. Also
+    # covers the group flow's _run_summary callsite.
+    if await temporalio.workflow.execute_activity(
+        check_summary_exists_activity,
+        inputs,
+        start_to_close_timeout=timedelta(seconds=10),
+        retry_policy=RetryPolicy(maximum_attempts=2),
+    ):
+        return
 
     if not inputs.video_based:
         # Run event-based summarization

@@ -26,7 +26,6 @@ from ee.hogai.session_summaries.constants import (
     FULL_VIDEO_EXPORT_FORMAT,
     MIN_SESSION_DURATION_FOR_VIDEO_SUMMARY_S,
 )
-from ee.models.session_summaries import SingleSessionSummary
 
 logger = structlog.get_logger(__name__)
 
@@ -39,19 +38,6 @@ async def prep_session_video_asset_activity(
     inputs: VideoSummarySingleSessionInputs,
 ) -> PrepSessionVideoAssetResult | None:
     """Prepare session video export: find or create ExportedAsset record."""
-    existing_summary = await database_sync_to_async(SingleSessionSummary.objects.get_summary, thread_sensitive=False)(
-        team_id=inputs.team_id,
-        session_id=inputs.session_id,
-        extra_summary_context=inputs.extra_summary_context,
-    )
-    if existing_summary is not None:
-        logger.debug(
-            f"Summary already exists for session {inputs.session_id}, skipping video processing",
-            session_id=inputs.session_id,
-            signals_type="session-summaries",
-        )
-        return None
-
     team = await Team.objects.aget(id=inputs.team_id)
     metadata = await database_sync_to_async(SessionReplayEvents().get_metadata)(
         session_id=inputs.session_id,

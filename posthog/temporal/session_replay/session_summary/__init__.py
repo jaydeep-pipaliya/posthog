@@ -18,6 +18,7 @@ from posthog.temporal.session_replay.session_summary.activities.patterns import 
 )
 from posthog.temporal.session_replay.session_summary.summarize_session import (
     SummarizeSingleSessionWorkflow,
+    check_summary_exists_activity,
     fetch_session_data_activity,
     get_llm_single_session_summary_activity,
 )
@@ -32,6 +33,7 @@ SESSION_SUMMARY_WORKFLOWS = [
 ]
 
 SESSION_SUMMARY_ACTIVITIES = [
+    check_summary_exists_activity,
     get_llm_single_session_summary_activity,
     fetch_session_batch_events_activity,
     extract_session_group_patterns_activity,
