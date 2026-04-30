@@ -29,11 +29,7 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
 
     @wf.query
     def get_progress(self) -> dict[str, str]:
-        """Coarse-grained phase of the rasterization workflow.
-
-        Fine-grained frame progress is reported separately via activity
-        heartbeats — read those via `describe().pending_activities`.
-        """
+        """Frame-level progress lives in the activity heartbeat, not here."""
         return {"phase": self._phase}
 
     @wf.run
@@ -50,12 +46,8 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
         info = wf.info()
         retry_policy = info.retry_policy
         max_attempts = retry_policy.maximum_attempts if retry_policy else 1
-        # Only bump when this is the LAST scheduled attempt — otherwise a
-        # recoverable failure-then-succeed would over-count by max_attempts.
+        # Bump only on the final scheduled attempt; recoverable failures would otherwise over-count.
         if max_attempts is None or max_attempts <= 0:
-            # Unlimited-retry policies disable the stuck-detection loop. All
-            # production callers set maximum_attempts; surface this so a future
-            # caller that drops it doesn't quietly lose the gate.
             wf.logger.warning(
                 "rasterize.stuck_counter_skipped_no_max_attempts",
                 extra={"max_attempts": max_attempts, "attempt": info.attempt},
@@ -111,7 +103,7 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
         assert prep.activity_input is not None  # tagged-union invariant
 
         self._phase = "rendering"
-        # Node.js returns a plain dict across the cross-language boundary.
+        # Plain dict from Node.js across the cross-language boundary.
         raw_result: dict[str, Any] = await wf.execute_activity(
             "rasterize-recording",
             prep.activity_input.model_dump(exclude_none=True),

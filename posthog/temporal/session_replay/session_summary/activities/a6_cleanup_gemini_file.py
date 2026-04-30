@@ -1,10 +1,3 @@
-"""
-Final cleanup activity:
-Delete the uploaded video file from Gemini to free storage quota.
-Runs in the workflow's finally block so it executes even when the upstream
-activities fail.
-"""
-
 from django.conf import settings
 
 import structlog

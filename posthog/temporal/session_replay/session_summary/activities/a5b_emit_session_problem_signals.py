@@ -1,10 +1,3 @@
-"""
-Post-consolidation fan-out activity:
-Emit signals for consolidated segments that indicate user problems, instead of
-relying on the batch clustering pipeline.
-Runs in parallel with the other a5* siblings after consolidation.
-"""
-
 import structlog
 import temporalio
 from structlog.contextvars import bind_contextvars

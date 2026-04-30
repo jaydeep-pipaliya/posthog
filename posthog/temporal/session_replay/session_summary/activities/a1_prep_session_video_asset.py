@@ -1,10 +1,3 @@
-"""
-Activity 1 of the video-based summarization workflow:
-Preparing the session video export (creating/finding an ExportedAsset record).
-The actual video rendering is executed as a child workflow by the parent summarization workflow.
-(Python modules have to start with a letter, hence the file is prefixed `a1_` instead of `1_`.)
-"""
-
 from datetime import timedelta
 
 from django.db import transaction
@@ -36,9 +29,7 @@ VIDEO_ANALYSIS_RECORDING_FPS = 3  # 3 frames per 1 second of original real time
 
 
 def _refresh_asset_input_params_locked(asset_id: int, session_id: str) -> None:
-    """Atomically reload export_context, overwrite the input fields A1 controls,
-    and save. SELECT FOR UPDATE serializes against finalize_rasterization's
-    own read-modify-write of the same JSONB column."""
+    """SELECT FOR UPDATE serializes this with finalize_rasterization's own JSONB write."""
     with transaction.atomic():
         asset = ExportedAsset.objects.select_for_update().get(id=asset_id)
         ctx = dict(asset.export_context or {})
@@ -55,23 +46,14 @@ def _refresh_asset_input_params_locked(asset_id: int, session_id: str) -> None:
 async def prep_session_video_asset_activity(
     inputs: VideoSummarySingleSessionInputs,
 ) -> PrepSessionVideoAssetResult | None:
-    """Prepare session video export: find or create ExportedAsset record."""
-    # Late race-window guard: bail before the expensive video path if another
-    # flow stored the summary between the workflow-entry check_summary_exists
-    # and this activity. Without this, the workflow proceeds to rasterize,
-    # upload to Gemini, fan out a3 segments, and re-emit Kafka tags/embeddings/
-    # signals before a5c finally no-ops on the duplicate write.
+    # Re-check at the video boundary: bail before rasterize/upload/fan-out if the
+    # summary landed since the workflow-entry guard.
     existing_summary = await database_sync_to_async(SingleSessionSummary.objects.get_summary, thread_sensitive=False)(
         team_id=inputs.team_id,
         session_id=inputs.session_id,
         extra_summary_context=inputs.extra_summary_context,
     )
     if existing_summary is not None:
-        logger.debug(
-            f"Summary already exists for session {inputs.session_id}, skipping video processing",
-            session_id=inputs.session_id,
-            signals_type="session-summaries",
-        )
         return None
     team = await Team.objects.aget(id=inputs.team_id)
     metadata = await database_sync_to_async(SessionReplayEvents().get_metadata)(
@@ -91,10 +73,7 @@ async def prep_session_video_asset_activity(
         )
         return None
 
-    # rasterize-recording itself decides whether to re-render based on
-    # the params fingerprint and S3 object presence — A1 just upserts the asset.
-    # TODO: Find a way to attach Gemini Files API id to the asset, with an expiration date, so we can reuse it (instead of re-uploading)
-    # or remove the video from Files API after processing it (so we don't hit Files API limits)
+    # TODO: attach Gemini Files API id to the asset with an expiration date so we can reuse it.
     existing_asset = await ExportedAsset.objects.filter(
         team_id=inputs.team_id,
         export_format=FULL_VIDEO_EXPORT_FORMAT,
@@ -102,11 +81,8 @@ async def prep_session_video_asset_activity(
     ).afirst()
 
     if existing_asset:
-        # Refresh the params we control so a constants change triggers re-render
-        # via fingerprint mismatch. Holds a row lock so this read-modify-write
-        # serializes against finalize_rasterization (which also updates
-        # export_context); without it, last writer wins on the JSON column and
-        # cache fields can be silently dropped.
+        # Refresh input params under a row lock so a constants change triggers
+        # a re-render via fingerprint mismatch without racing finalize_rasterization.
         await database_sync_to_async(_refresh_asset_input_params_locked, thread_sensitive=False)(
             existing_asset.id, inputs.session_id
         )

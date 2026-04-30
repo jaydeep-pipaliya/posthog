@@ -69,14 +69,12 @@ class RasterizationActivityOutput(BaseModel, frozen=True):
 class FinalizeRasterizationInput(BaseModel, frozen=True):
     exported_asset_id: int
     result: RasterizationActivityOutput
-    # Defaults to "" so workflows that started before the cache change shipped
-    # don't fail to deserialize when their finalize_rasterization activity is
-    # scheduled after deploy. Drop the default after one release cycle.
+    # Default for backward compat across the deploy; drop after one release.
     render_fingerprint: str = ""
 
 
-# Output destination fields — excluded so a bucket/prefix change doesn't invalidate caches.
-_FINGERPRINT_EXCLUDE: frozenset[str] = frozenset({"team_id", "session_id", "s3_bucket", "s3_key_prefix"})
+# Output destination fields — excluded so bucket/prefix changes don't invalidate caches.
+_FINGERPRINT_EXCLUDE: set[str] = {"team_id", "session_id", "s3_bucket", "s3_key_prefix"}
 
 
 def compute_params_fingerprint(activity_input: "RasterizationActivityInput") -> str:
@@ -87,9 +85,7 @@ def compute_params_fingerprint(activity_input: "RasterizationActivityInput") -> 
 class BuildRasterizationResult(BaseModel, frozen=True):
     activity_input: RasterizationActivityInput | None = None
     cached_output: RasterizationActivityOutput | None = None
-    # Defaults to "" so an old build_rasterization_input result that completed
-    # before the cache change shipped can still feed a post-deploy workflow
-    # body. Drop the default after one release cycle.
+    # Default for backward compat across the deploy; drop after one release.
     render_fingerprint: str = ""
 
     @model_validator(mode="after")

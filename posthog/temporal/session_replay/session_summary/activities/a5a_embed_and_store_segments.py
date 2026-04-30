@@ -1,9 +1,3 @@
-"""
-Post-consolidation fan-out activity:
-Enqueue embedding requests for the meaningful video segments via Kafka.
-Runs in parallel with the other a5* siblings after consolidation.
-"""
-
 import structlog
 import temporalio
 

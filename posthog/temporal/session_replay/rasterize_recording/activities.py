@@ -96,7 +96,7 @@ def _try_synthesize_cached_output(
         return None
     if ctx.get(_RENDER_FINGERPRINT_KEY) != fingerprint:
         return None
-    # head_object returns None for 404 or any other error; either way, re-render.
+    # head_object returns None on 404 or any error — re-render in both cases.
     if object_storage.head_object(file_key=asset.content_location) is None:
         logger.info(
             "rasterize.cache.s3_missing_or_unreachable",
@@ -136,10 +136,7 @@ def finalize_rasterization(inputs: FinalizeRasterizationInput) -> None:
     if not result.s3_uri.startswith(prefix):
         raise ValueError(f"Unexpected s3_uri prefix: {result.s3_uri} (expected {prefix}...)")
 
-    # Hold a row lock for the read-modify-write of export_context so we
-    # serialize against prep_session_video_asset_activity (which also updates
-    # the JSON column). Without the lock, last writer wins and cache fields
-    # the fingerprint cache relies on can be silently dropped.
+    # Row lock serializes the JSONB read-modify-write against prep_session_video_asset_activity.
     with transaction.atomic():
         asset = ExportedAsset.objects.select_for_update().get(pk=inputs.exported_asset_id)
         asset.content_location = result.s3_uri[len(prefix) :]

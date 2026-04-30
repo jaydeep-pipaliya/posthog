@@ -1,12 +1,3 @@
-"""
-Per-segment slicing of LlmInputs:
-Reads the full SingleSessionSummaryLlmInputs blob from Redis once, computes a
-slim per-segment slice (events in time range + URL/window maps reduced to keys
-present in those events), and writes one Redis key per segment under
-StateActivitiesEnum.SEGMENT_LLM_CONTEXT. Replaces the per-segment full-blob
-read inside analyze_video_segment_activity.
-"""
-
 import json
 from typing import Any, cast
 
@@ -39,7 +30,6 @@ async def slice_session_data_for_segments_activity(
     inputs: VideoSummarySingleSessionInputs,
     segment_specs: list[VideoSegmentSpec],
 ) -> None:
-    """Pre-compute one SegmentLlmContext per segment and store in Redis."""
     redis_client, redis_input_key, _ = get_redis_state_client(
         key_base=inputs.redis_key_base,
         input_label=StateActivitiesEnum.SESSION_DB_DATA,
@@ -72,22 +62,25 @@ async def slice_session_data_for_segments_activity(
     except ValueError:
         window_id_index = None
 
-    # One pass over the full mapping to bucket events by which segment(s)
-    # they fall into. The inclusive-on-both-ends bound (start_ms <= t <= end_ms)
-    # matches what _find_events_in_time_range used to do per-segment, so an
-    # event landing exactly on a segment boundary gets duplicated into both
-    # adjacent segments — same as before this refactor. Consolidation downstream
-    # collapses any cross-segment duplicates.
+    # Inclusive-on-both-ends bound matches the prior _find_events_in_time_range —
+    # boundary events appear in both adjacent segments and are deduped at consolidation.
     indexed_segments = sorted(segment_specs, key=lambda s: s.start_time)
     buckets: dict[int, list[tuple[str, list[Any], int]]] = {s.segment_index: [] for s in indexed_segments}
 
     for event_id, event_data in llm_input.simplified_events_mapping.items():
-        event_ms = calculate_time_since_start(event_data[timestamp_index], session_start_time)
+        ts = event_data[timestamp_index]
+        if not isinstance(ts, str):
+            continue
+        event_ms = calculate_time_since_start(ts, session_start_time)
         if event_ms is None:
             continue
+        event_index = event_data[event_index_index]
+        if not isinstance(event_index, int):
+            continue
+        widened_data: list[Any] = list(event_data)
         for spec in indexed_segments:
             if int(spec.start_time * 1000) <= event_ms <= int(spec.end_time * 1000):
-                buckets[spec.segment_index].append((event_id, event_data, event_data[event_index_index]))
+                buckets[spec.segment_index].append((event_id, widened_data, event_index))
 
     for spec in segment_specs:
         bucket = buckets[spec.segment_index]
@@ -124,7 +117,6 @@ async def slice_session_data_for_segments_activity(
             label=StateActivitiesEnum.SEGMENT_LLM_CONTEXT,
             state_id=segment_state_id,
         )
-        # store_data_in_redis json.dumps + gzips the payload itself; the type just needs to round-trip via JSON.
         await store_data_in_redis(
             redis_client=redis_client,
             redis_key=segment_key,

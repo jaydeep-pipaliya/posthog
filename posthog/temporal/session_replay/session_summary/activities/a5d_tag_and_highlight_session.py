@@ -1,10 +1,4 @@
-"""
-Post-consolidation fan-out activity:
-Write session tags and highlight flag to ClickHouse via Kafka (fire-and-forget).
-The tagging LLM call happens in a4 as a follow-up turn in the same conversation
-that produced the consolidation; this activity only handles the Kafka produce.
-Runs in parallel with the other a5* siblings after consolidation.
-"""
+"""The tagging LLM call happens in a4; this activity only produces to Kafka."""
 
 from datetime import timedelta
 

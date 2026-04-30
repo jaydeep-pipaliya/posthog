@@ -1,9 +1,3 @@
-"""
-Activity 3 of the video-based summarization workflow:
-Analyzing a specific segment of the session video with Gemini.
-(Python modules have to start with a letter, hence the file is prefixed `a3_` instead of `3_`.)
-"""
-
 import re
 import json
 from typing import Any, cast
@@ -41,11 +35,7 @@ async def analyze_video_segment_activity(
     trace_id: str,
     team_name: str,
 ) -> list[VideoSegmentOutput]:
-    """Analyze a segment of the uploaded video with Gemini using video_metadata for time range
-    Returns detailed descriptions of salient moments in the segment.
-    """
     try:
-        # Retrieve the per-segment slice cached by slice_session_data_for_segments_activity.
         events_context = ""
         if not inputs.redis_key_base:
             msg = "No Redis key base provided when analyzing video segment"

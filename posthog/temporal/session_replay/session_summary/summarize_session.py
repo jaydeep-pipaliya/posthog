@@ -110,9 +110,6 @@ def _set_phase(progress: SingleSessionProgress | None, phase: str) -> None:
 
 @temporalio.activity.defn
 async def check_summary_exists_activity(inputs: SingleSessionSummaryInputs) -> bool:
-    """Workflow-entry guard: short-circuits the rest of the flow when a summary
-    already exists. Lets us skip the parallel a5* fan-out (which would otherwise
-    re-emit Kafka messages for embeddings/signals/tags) on retried runs."""
     summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
         team_id=inputs.team_id,
         session_ids=[inputs.session_id],
@@ -123,10 +120,7 @@ async def check_summary_exists_activity(inputs: SingleSessionSummaryInputs) -> b
 
 @temporalio.activity.defn
 async def fetch_session_data_activity(inputs: SingleSessionSummaryInputs) -> bool:
-    """Fetch data from DB for a single session and store/cache in Redis (to avoid hitting Temporal memory limits).
-    Returns True if the data was fetched successfully, False if the session has no associated events (probably static).
-    """
-    # If DB data is already in Redis and matches the target class - it's within TTL, so no need to re-fetch it from DB
+    """Returns False if the session has no events (static); True otherwise."""
     redis_client, redis_input_key, _ = get_redis_state_client(
         key_base=inputs.redis_key_base,
         input_label=StateActivitiesEnum.SESSION_DB_DATA,
@@ -217,13 +211,10 @@ def _store_final_summary_in_db_from_activity(
 async def get_llm_single_session_summary_activity(
     inputs: SingleSessionSummaryInputs,
 ) -> None:
-    """Summarize a single session in one call and store/cache in Redis (to avoid hitting Temporal memory limits)"""
-    # Late race-window guard: another flow (notably the group-summary path,
-    # which uses a different workflow id namespace from SummarizeSingleSession
-    # Workflow) can store the summary between the workflow-entry check in
-    # ensure_llm_single_session_summary and this activity. The store guard in
-    # _store_final_summary_in_db_from_activity catches duplicate writes, but
-    # avoids redundant LLM cost only if we re-check here.
+    """Summarize a single session via LLM. Caches inputs/outputs in Redis to avoid Temporal payload limits."""
+    # Re-check at the LLM-call boundary: the group-summary path uses a different
+    # workflow id namespace from SummarizeSingleSessionWorkflow, so summaries can
+    # land between the workflow-entry guard and this activity.
     summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
         team_id=inputs.team_id,
         session_ids=[inputs.session_id],
@@ -231,7 +222,6 @@ async def get_llm_single_session_summary_activity(
     )
     if summary_exists.get(inputs.session_id):
         return None
-    # Base key includes session ids, so when summarizing this session again, but with different inputs (or order) - we don't use cache
     redis_client, redis_input_key, _ = get_redis_state_client(
         key_base=inputs.redis_key_base,
         input_label=StateActivitiesEnum.SESSION_DB_DATA,
@@ -322,7 +312,6 @@ class SummarizeSingleSessionWorkflow(PostHogWorkflow):
     @temporalio.workflow.run
     async def run(self, inputs: SingleSessionSummaryInputs) -> None:
         start_time = temporalio.workflow.now()
-        # Only the video flow reports progress via workflow queries.
         progress = self._progress if inputs.video_based else None
         _set_phase(progress, "fetching_data")
         session_got_data = await temporalio.workflow.execute_activity(
@@ -332,7 +321,7 @@ class SummarizeSingleSessionWorkflow(PostHogWorkflow):
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
         if not session_got_data:
-            return None  # If the session got no data, skip it
+            return None
         await ensure_llm_single_session_summary(inputs, progress=progress)
         duration_seconds = (temporalio.workflow.now() - start_time).total_seconds()
         await temporalio.workflow.execute_activity(
@@ -504,19 +493,11 @@ async def ensure_llm_single_session_summary(
     inputs: SingleSessionSummaryInputs,
     progress: SingleSessionProgress | None = None,
 ):
-    """Run the single-session summary flow.
-
-    If ``progress`` is provided (only by ``SummarizeSingleSessionWorkflow``
-    for the video flow), phase transitions and segment counts are written
-    into it so the workflow's ``get_progress`` query can expose them.
-    """
+    """Single-session summary flow. ``progress`` populated only by the video flow."""
     retry_policy = RetryPolicy(maximum_attempts=3)
     trace_id = temporalio.workflow.info().workflow_id
 
-    # Bail before any LLM work if a previous run produced a summary. Must run
-    # before the parallel a5* fan-out (video flow) — otherwise embeddings,
-    # signals, and tags would be re-emitted to Kafka on retried runs. Also
-    # covers the group flow's _run_summary callsite.
+    # Must run before the a5* fan-out — embeddings/signals/tags would otherwise re-emit on retried runs.
     if await temporalio.workflow.execute_activity(
         check_summary_exists_activity,
         inputs,
@@ -548,7 +529,6 @@ async def ensure_llm_single_session_summary(
         product_context=inputs.product_context,
     )
 
-    # a1: Prepare video export (find or create ExportedAsset)
     _set_phase(progress, "preparing_video")
     export_result = await temporalio.workflow.execute_activity(
         prep_session_video_asset_activity,
@@ -556,14 +536,11 @@ async def ensure_llm_single_session_summary(
         start_to_close_timeout=timedelta(minutes=3),
         retry_policy=retry_policy,
     )
-
-    # Skip video-based summarization if session is too short or summary already exists
     if export_result is None:
         return
 
     asset_id = export_result.asset_id
 
-    # rasterize-recording self-skips when the existing render still matches.
     _set_phase(progress, "rendering_video")
     workflow_id = f"session-video-summary-rasterize_{video_inputs.team_id}_{video_inputs.session_id}"
     if progress is not None:
@@ -584,7 +561,6 @@ async def ensure_llm_single_session_summary(
         ),
     )
 
-    # a2: Upload full video to Gemini (single upload)
     _set_phase(progress, "uploading_to_gemini")
     upload_result = await temporalio.workflow.execute_activity(
         upload_video_to_gemini_activity,
@@ -596,7 +572,6 @@ async def ensure_llm_single_session_summary(
     team_name = export_result.team_name
     inactivity_periods = upload_result["inactivity_periods"]
 
-    # Calculate segment specs based on video duration and activity periods
     segment_specs = calculate_video_segment_specs(
         video_duration=uploaded_video.duration,
         chunk_duration=SESSION_VIDEO_CHUNK_DURATION_S,
@@ -604,8 +579,6 @@ async def ensure_llm_single_session_summary(
         inactivity_periods=inactivity_periods,
     )
 
-    # a2b: pre-slice the cached LlmInputs into per-segment Redis keys so a3
-    # doesn't load and iterate the full session blob N times in parallel.
     await temporalio.workflow.execute_activity(
         slice_session_data_for_segments_activity,
         args=(video_inputs, segment_specs),
@@ -613,9 +586,8 @@ async def ensure_llm_single_session_summary(
         retry_policy=retry_policy,
     )
 
-    # a6 (cleanup) must run even if a3-a5 fail
+    # Cleanup must run even on failure of the analyze/consolidate/store flow.
     try:
-        # a3: Analyze all segments in parallel (max 100 concurrent to limit blast radius)
         _set_phase(progress, "analyzing_segments")
         if progress is not None:
             progress["segments_total"] = len(segment_specs)
@@ -637,7 +609,6 @@ async def ensure_llm_single_session_summary(
         segment_tasks = [_analyze_segment_with_semaphore(segment_spec) for segment_spec in segment_specs]
         segment_results = await asyncio.gather(*segment_tasks, return_exceptions=True)
 
-        # Flatten results from all segments
         raw_segments: list[VideoSegmentOutput] = []
         for result in segment_results:
             if isinstance(result, Exception):
@@ -652,8 +623,6 @@ async def ensure_llm_single_session_summary(
                 continue
             raw_segments.extend(cast(list[VideoSegmentOutput], result))
 
-        # a4: Consolidate raw segments into meaningful semantic segments,
-        # then tag the session in a follow-up turn of the same conversation
         _set_phase(progress, "consolidating")
         consolidation_output = await temporalio.workflow.execute_activity(
             consolidate_video_segments_activity,
@@ -665,13 +634,8 @@ async def ensure_llm_single_session_summary(
         consolidated_analysis = consolidation_output["consolidated_analysis"]
         tagging = consolidation_output["tagging"]
 
-        # a5: Post-consolidation fan-out. The four activities below consume
-        # a4's output independently and run in parallel. The store activity
-        # (Postgres write) is the canonical record — its failure is fatal.
-        # The other three (embed/emit/tag) are fire-and-forget side effects
-        # that we log but don't propagate, since a missing tag, embedding,
-        # or signal is preferable to losing the whole summary because Kafka
-        # hiccupped.
+        # Fan out post-consolidation work. Storage is the canonical record (fatal on failure);
+        # embed/emit/tag are best-effort Kafka side effects.
         _set_phase(progress, "saving_summary")
         problems = collect_session_problems(consolidated_analysis.segments)
         logger.info(
@@ -740,13 +704,9 @@ async def ensure_llm_single_session_summary(
                     signals_type="session-summaries",
                 )
 
-        # Storage failure is fatal — without the row, the summary is lost
-        # and downstream consumers see tags/embeddings/signals for a session
-        # that never resolves to a stored summary.
         if isinstance(store_result, BaseException):
             raise store_result
     finally:
-        # a6: Delete uploaded video from Gemini to free storage quota
         _set_phase(progress, "cleanup")
         await temporalio.workflow.execute_activity(
             cleanup_gemini_file_activity,
@@ -919,17 +879,13 @@ VIDEO_PROGRESS_POLL_INTERVAL_S = 2.0
 
 
 async def _get_rasterizer_frame_progress(client: Any, rasterizer_workflow_id: str) -> dict[str, Any] | None:
-    """Combine the rasterizer child's `get_progress` query with the in-flight
-    activity's heartbeat details. Errors are swallowed; progress reporting must
-    never break the summary flow.
-    """
+    """Errors swallowed: progress reporting must never break the summary flow."""
     try:
         child_handle = client.get_workflow_handle(rasterizer_workflow_id)
         phase_info: dict[str, Any] = await child_handle.query("get_progress")
 
         frame_progress: dict[str, Any] | None = None
         desc = await child_handle.describe()
-        # raw_description carries the gRPC payload with encrypted heartbeat details.
         pending = getattr(desc.raw_description, "pending_activities", None) or []
         if pending:
             raw_payloads = list(pending[0].heartbeat_details.payloads)
@@ -951,12 +907,7 @@ async def _get_rasterizer_frame_progress(client: Any, rasterizer_workflow_id: st
 
 
 async def _fetch_summary_progress(client: Any, handle: WorkflowHandle) -> dict[str, Any] | None:
-    """Build the progress payload yielded to SSE clients.
-
-    Returns None if the workflow isn't queryable yet (caller should sleep and retry).
-    The returned dict carries the parent's `get_progress` fields plus a `rasterizer`
-    key that's either the child's combined progress or None.
-    """
+    """Returns None when the workflow isn't queryable yet — caller should sleep and retry."""
     try:
         payload: dict[str, Any] = await handle.query("get_progress")
     except Exception as e:

@@ -40,16 +40,11 @@ class VideoSummarySingleSessionInputs(BaseModel):
 
 
 class PrepSessionVideoAssetResult(BaseModel):
-    """Carries Team fields forward so downstream activities don't refetch Team."""
-
     model_config = ConfigDict(frozen=True)
 
     asset_id: int
     team_api_token: str
-    # Defaults to "" so an old prep result (without team_name) that completed
-    # before this field shipped can still deserialize on the post-deploy
-    # workflow body. Drop the default after one release cycle.
-    team_name: str = ""
+    team_name: str = ""  # default for backward compat across the deploy; drop after one release
 
 
 class UploadedVideo(BaseModel):
@@ -92,8 +87,6 @@ class VideoSegmentSpec(BaseModel):
 
 
 class SegmentEventEntry(BaseModel):
-    """One event in a segment slice. (event_id, event_data)."""
-
     model_config = ConfigDict(frozen=True)
 
     event_id: str
@@ -101,13 +94,7 @@ class SegmentEventEntry(BaseModel):
 
 
 class SegmentLlmContext(BaseModel):
-    """Slim per-segment slice of LlmInputs written by slice_session_data_for_segments_activity.
-
-    Carries only what analyze_video_segment_activity needs for its segment:
-    the events that fall inside the segment's time range, plus the URL/window
-    mappings reduced to the keys actually referenced. Avoids each segment
-    activity loading and iterating the full session blob.
-    """
+    """Per-segment slice of LlmInputs — events in range plus the URL/window keys they reference."""
 
     model_config = ConfigDict(frozen=True)
 
