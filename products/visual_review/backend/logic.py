@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from django.db import (
+    connections,
     models as db_models,
     transaction,
 )
@@ -23,10 +24,11 @@ import structlog
 if TYPE_CHECKING:
     from posthog.models.integration import GitHubIntegration
 
+from posthog.models.integration import GitHubRateLimitError
+
 from .classifier import SnapshotClassifier
-from .db import WRITER_DB
+from .db import READER_DB, WRITER_DB
 from .facade.enums import ReviewDecision, ReviewState, RunPurpose, RunStatus, SnapshotResult, ToleratedReason
-from .github import GitHubRateLimitError  # noqa: F401 — re-exported for facade
 from .models import Artifact, QuarantinedIdentifier, Repo, Run, RunSnapshot, ToleratedHash
 from .signing import sign_snapshot_hash, verify_signed_hash
 from .storage import ArtifactStorage
@@ -360,7 +362,7 @@ def _get_merge_base_sha(github: GitHubIntegration, repo_full_name: str, base: st
 
     from .github import github_request
 
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
     try:
         response = github_request(
             "GET",
@@ -399,7 +401,7 @@ def _get_default_branch(github: GitHubIntegration, repo_full_name: str) -> str:
 
     from .github import github_request
 
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
     try:
         response = github_request(
             "GET",
@@ -1148,7 +1150,7 @@ def _resolve_repo_by_id(github, repo_external_id: int) -> str | None:
     """
     from .github import github_request
 
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
     response = github_request(
         "GET",
         f"https://api.github.com/repositories/{repo_external_id}",
@@ -1181,10 +1183,7 @@ def _github_api_request(
     safe_path = "/".join(quote(segment, safe="") for segment in path.split("/"))
 
     github = get_github_integration_for_repo(repo)
-    if github.access_token_expired():
-        github.refresh_access_token()
-
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
 
     url = f"https://api.github.com/repos/{repo.repo_full_name}/{safe_path}"
     response = github_request(method, url, access_token=access_token, **kwargs)
@@ -1215,7 +1214,7 @@ def _get_pr_info(github, repo_full_name: str, pr_number: int) -> dict:
     """
     from .github import github_request
 
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
 
     response = github_request(
         "GET",
@@ -1250,7 +1249,7 @@ def _fetch_baseline_file(
 
     from .github import github_request
 
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
 
     response = github_request(
         "GET",
@@ -1355,7 +1354,7 @@ def _post_commit_status(
         logger.debug("visual_review.status_check_skipped", run_id=str(run.id), reason="no_github_integration")
         return
 
-    access_token = github.integration.sensitive_config["access_token"]
+    access_token = github.get_access_token()
     target_url = f"{settings.SITE_URL}/project/{repo.team_id}/visual_review/runs/{run.id}"
 
     try:
@@ -1791,26 +1790,70 @@ def get_run_snapshots(run_id: UUID, team_id: int | None = None) -> list[RunSnaps
     )
 
 
-def get_snapshot_history(repo_id: UUID, identifier: str, limit: int = 15) -> list[dict]:
-    """Recent runs where this snapshot identifier appeared, most recent first."""
-    entries = (
-        RunSnapshot.objects.filter(
-            run__repo_id=repo_id,
-            identifier=identifier,
+# Default-branch fallback. We don't track repos' actual default branch, so we
+# include both candidates and assume nobody has both — whichever has rows wins.
+# When `trunk`/`develop`-style defaults show up, this becomes a `Repo` field.
+_DEFAULT_BRANCHES = ("master", "main")
+
+
+_SNAPSHOT_HISTORY_DEDUP_SQL = """
+WITH ordered AS (
+    SELECT rs.id,
+           rs.current_artifact_id,
+           LAG(rs.current_artifact_id) OVER (ORDER BY r.created_at DESC) AS prev_artifact_id,
+           r.created_at
+    FROM visual_review_runsnapshot rs
+    JOIN visual_review_run r ON r.id = rs.run_id
+    WHERE r.repo_id = %s
+      AND r.run_type = %s
+      AND r.branch = ANY(%s)
+      AND r.status = 'completed'
+      AND rs.identifier = %s
+      AND rs.result <> 'new'
+)
+SELECT id
+FROM ordered
+WHERE prev_artifact_id IS DISTINCT FROM current_artifact_id
+ORDER BY created_at DESC
+"""
+
+
+def get_snapshot_history(repo_id: UUID, identifier: str, run_type: str) -> list[RunSnapshot]:
+    """Baseline timeline for a snapshot identifier on the default branch.
+
+    Returns one entry per *baseline event* — i.e. each time the committed content
+    actually changed. Dedup happens server-side via a `LAG` window function over
+    runs ordered by `created_at DESC`: a row is kept only when its
+    `current_artifact_id` differs from its predecessor's. Plan stays the same as
+    the un-deduped query (verified on prod) — the WindowAgg piggybacks on the
+    sort already needed for ORDER BY, so the dedup is essentially free and we
+    avoid shipping the full raw history (often 100×–1000× larger) to Python.
+
+    Filters applied at the DB level:
+      - branch ∈ master/main, run_type, repo: scope to default-branch runs of this kind
+      - status=completed: drop pre-classification rows. `result` defaults to NEW
+        on upload and is only finalised when the run completes; runs stuck in
+        pending/processing leave noise behind that isn't a real history event.
+      - result != NEW: belt+braces; NEW shouldn't survive on a completed run, but
+        cheap to filter and protects us if classification ever leaves stragglers.
+    """
+    with connections[READER_DB].cursor() as cursor:
+        cursor.execute(
+            _SNAPSHOT_HISTORY_DEDUP_SQL,
+            [str(repo_id), run_type, list(_DEFAULT_BRANCHES), identifier],
         )
-        .select_related("run")
-        .order_by("-run__created_at")[:limit]
-    )
-    return [
-        {
-            "run_id": entry.run_id,
-            "result": entry.result,
-            "branch": entry.run.branch,
-            "commit_sha": entry.run.commit_sha,
-            "created_at": entry.run.created_at,
-        }
-        for entry in entries
-    ]
+        ordered_ids: list[UUID] = [row[0] for row in cursor.fetchall()]
+
+    if not ordered_ids:
+        return []
+
+    # `id__in` doesn't preserve order, so look rows up by id and re-emit in the
+    # cursor's order. Fetched count equals the deduped baseline-event count
+    # (typically <20), so this hydration is cheap regardless of raw history size.
+    rows_by_id: dict[UUID, RunSnapshot] = {
+        row.id: row for row in RunSnapshot.objects.filter(id__in=ordered_ids).select_related("run", "current_artifact")
+    }
+    return [rows_by_id[rid] for rid in ordered_ids if rid in rows_by_id]
 
 
 @transaction.atomic(using=WRITER_DB)
