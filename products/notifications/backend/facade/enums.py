@@ -12,6 +12,7 @@ class NotificationType(str, Enum):
     APPROVAL_RESOLVED = "approval_resolved"
     PIPELINE_FAILURE = "pipeline_failure"
     ISSUE_ASSIGNED = "issue_assigned"
+    WORKFLOW_RATE_LIMITED = "workflow_rate_limited"
 
 
 class Priority(str, Enum):
@@ -35,6 +36,7 @@ class SourceType(str, Enum):
     SURVEY = "survey"
     EXPERIMENT = "experiment"
     ERROR_TRACKING = "error_tracking"
+    WORKFLOW = "workflow"
 
 
 class NotificationOnlyResourceType(str, Enum):
@@ -43,6 +45,7 @@ class NotificationOnlyResourceType(str, Enum):
     PIPELINE = "pipeline"
     APPROVAL = "approval"
     COMMENT = "comment"
+    WORKFLOW = "workflow"
 
 
 # Derived from APIScopeObject (used by ACCESS_CONTROL_RESOURCES) — keep in sync

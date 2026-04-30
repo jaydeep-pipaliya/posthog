@@ -47,6 +47,8 @@ class Notifications(TypedDict, total=False):
     organization_member_join_email_disabled: dict[
         str, bool
     ]  # Maps organization ID (str) to disabled status (True = do not email when a new member joins)
+    workflows_notifications_disabled: bool  # Parent toggle: True = all workflow notifications off
+    workflow_rate_limited: bool  # Sub-toggle: notify when a workflow exceeds its rate limit
 
 
 NOTIFICATION_DEFAULTS: Notifications = {
@@ -61,6 +63,8 @@ NOTIFICATION_DEFAULTS: Notifications = {
     "materialized_view_sync_failed": False,  # Materialized view failure disabled by default
     "web_analytics_weekly_digest": True,  # Web analytics weekly digest enabled by default
     "organization_member_join_email_disabled": {},  # No per-org opt-out until user configures
+    "workflows_notifications_disabled": False,  # Workflow notifications enabled by default
+    "workflow_rate_limited": True,  # Rate-limit notifications on by default
 }
 
 # We don't need the following attributes in most cases, so we defer them by default
