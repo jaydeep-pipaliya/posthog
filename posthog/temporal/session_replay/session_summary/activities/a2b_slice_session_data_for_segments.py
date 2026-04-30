@@ -72,8 +72,6 @@ async def slice_session_data_for_segments_activity(
         if not isinstance(ts, str):
             continue
         event_ms = calculate_time_since_start(ts, session_start_time)
-        if event_ms is None:
-            continue
         event_index = event_data[event_index_index]
         if not isinstance(event_index, int):
             continue
