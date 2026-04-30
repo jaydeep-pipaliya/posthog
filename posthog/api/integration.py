@@ -896,6 +896,75 @@ class IntegrationViewSet(
 
         return Response(self.get_serializer(instance).data)
 
+    @action(methods=["POST"], detail=False, url_path="github/oauth_authorize")
+    def github_oauth_authorize(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+        """Mint a User OAuth round-trip URL for an existing GitHub App installation.
+
+        Used when GitHub redirects the install flow back without an OAuth `code`
+        (the App was already installed on the org and the user landed on the
+        Configure page). Without `code` we can't run `verify_user_installation_access`,
+        so the auto-link via link_existing only works when a sibling team in the
+        org has already captured the installation. For the orphan case — installation
+        exists on GitHub but no PostHog team has linked it yet — we send the user
+        through GitHub's User OAuth flow to mint a fresh `code`. State is bound
+        server-side to (user_id, team_id, installation_id) and is single-use.
+        The ``/complete/github-link/`` callback handles the return.
+        """
+        from django.utils.crypto import get_random_string
+
+        from posthog.api.user_integration import (
+            GITHUB_INSTALL_STATE_CACHE_PREFIX,
+            GITHUB_INSTALL_STATE_TTL_SECONDS,
+            _github_oauth_redirect_uri,
+        )
+
+        installation_id = request.data.get("installation_id")
+        next_url_raw = request.data.get("next") or ""
+        connect_from = request.data.get("connect_from") if request.data.get("connect_from") == "posthog_code" else None
+
+        if not installation_id:
+            raise ValidationError("installation_id is required")
+
+        if not re.fullmatch(r"\d{1,20}", str(installation_id)):
+            raise ValidationError("Invalid installation_id")
+
+        # Reject absolute / protocol-relative URLs to prevent open redirects on the
+        # callback's redirect-to-`next` step. Only allow same-origin relative paths.
+        next_url = str(next_url_raw)
+        if next_url and not (next_url.startswith("/") and not next_url.startswith("//")):
+            raise ValidationError("next must be a relative path starting with /")
+
+        client_id = settings.GITHUB_APP_CLIENT_ID
+        if not client_id:
+            raise ValidationError("GitHub App client ID is not configured")
+
+        token = get_random_string(48)
+        state_payload: dict[str, Any] = {
+            "user_id": request.user.id,
+            "team_id": self.team_id,
+            "installation_id": str(installation_id),
+            "flow": "team_oauth_authorize",
+            "next": str(next_url),
+        }
+        if connect_from:
+            state_payload["connect_from"] = connect_from
+
+        cache.set(
+            f"{GITHUB_INSTALL_STATE_CACHE_PREFIX}{token}",
+            state_payload,
+            timeout=GITHUB_INSTALL_STATE_TTL_SECONDS,
+        )
+
+        oauth_url = "https://github.com/login/oauth/authorize?" + urlencode(
+            {
+                "client_id": client_id,
+                "redirect_uri": _github_oauth_redirect_uri(),
+                "state": urlencode({"token": token}),
+            }
+        )
+
+        return Response({"oauth_url": oauth_url})
+
     @extend_schema(request=None, responses={200: GitHubReposRefreshResponseSerializer})
     @action(methods=["POST"], detail=True, url_path="github_repos/refresh")
     def refresh_github_repos(self, request: Request, *args: Any, **kwargs: Any) -> Response:

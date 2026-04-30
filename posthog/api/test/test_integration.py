@@ -1,3 +1,4 @@
+import re
 import hmac
 import json
 import time
@@ -2068,3 +2069,111 @@ class TestGitHubLinkExisting:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "source_team_id or installation_id is required" in response.json()["detail"]
+
+
+class TestGitHubOAuthAuthorize:
+    """Tests for POST /integrations/github/oauth_authorize/ — mints a User OAuth URL
+    so the frontend can recover from `setup_action=update` redirects (no code).
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_environment(self, db):
+        self.organization = Organization.objects.create(name="Test Org")
+        self.team = Team.objects.create(organization=self.organization, name="Test Team")
+        self.user = User.objects.create_and_join(
+            self.organization, "test@posthog.com", "test", level=OrganizationMembership.Level.ADMIN
+        )
+
+    def test_oauth_authorize_returns_github_url_with_state_in_cache(self, client: HttpClient):
+        client.force_login(self.user)
+
+        with patch.object(django_settings, "GITHUB_APP_CLIENT_ID", "test-client-id"):
+            response = client.post(
+                f"/api/environments/{self.team.pk}/integrations/github/oauth_authorize/",
+                {"installation_id": "12345", "next": "/some/return/path"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert "oauth_url" in body
+        assert body["oauth_url"].startswith("https://github.com/login/oauth/authorize?")
+        assert "client_id=test-client-id" in body["oauth_url"]
+
+        # Pull the state token out of the URL and verify the cache entry is bound
+        # to user_id + team_id + installation_id.
+        token_match = re.search(r"state=token%3D([^&]+)", body["oauth_url"])
+        assert token_match is not None
+        token = token_match.group(1)
+        cached = cache.get(f"github_user_install_state:{token}")
+        assert cached is not None
+        assert cached["user_id"] == self.user.id
+        assert cached["team_id"] == self.team.pk
+        assert cached["installation_id"] == "12345"
+        assert cached["flow"] == "team_oauth_authorize"
+        assert cached["next"] == "/some/return/path"
+
+    def test_oauth_authorize_requires_installation_id(self, client: HttpClient):
+        client.force_login(self.user)
+
+        with patch.object(django_settings, "GITHUB_APP_CLIENT_ID", "test-client-id"):
+            response = client.post(
+                f"/api/environments/{self.team.pk}/integrations/github/oauth_authorize/",
+                {},
+                content_type="application/json",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "installation_id is required" in response.json()["detail"]
+
+    def test_oauth_authorize_rejects_non_numeric_installation_id(self, client: HttpClient):
+        client.force_login(self.user)
+
+        with patch.object(django_settings, "GITHUB_APP_CLIENT_ID", "test-client-id"):
+            response = client.post(
+                f"/api/environments/{self.team.pk}/integrations/github/oauth_authorize/",
+                {"installation_id": "abc"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Invalid installation_id" in response.json()["detail"]
+
+    def test_oauth_authorize_rejects_absolute_next_url(self, client: HttpClient):
+        client.force_login(self.user)
+
+        with patch.object(django_settings, "GITHUB_APP_CLIENT_ID", "test-client-id"):
+            response = client.post(
+                f"/api/environments/{self.team.pk}/integrations/github/oauth_authorize/",
+                {"installation_id": "12345", "next": "https://evil.com/steal"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "next must be a relative path" in response.json()["detail"]
+
+    def test_oauth_authorize_rejects_protocol_relative_next_url(self, client: HttpClient):
+        client.force_login(self.user)
+
+        with patch.object(django_settings, "GITHUB_APP_CLIENT_ID", "test-client-id"):
+            response = client.post(
+                f"/api/environments/{self.team.pk}/integrations/github/oauth_authorize/",
+                {"installation_id": "12345", "next": "//evil.com/steal"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "next must be a relative path" in response.json()["detail"]
+
+    def test_oauth_authorize_requires_client_id_configured(self, client: HttpClient):
+        client.force_login(self.user)
+
+        with patch.object(django_settings, "GITHUB_APP_CLIENT_ID", ""):
+            response = client.post(
+                f"/api/environments/{self.team.pk}/integrations/github/oauth_authorize/",
+                {"installation_id": "12345"},
+                content_type="application/json",
+            )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "GitHub App client ID is not configured" in response.json()["detail"]

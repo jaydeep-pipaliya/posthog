@@ -203,6 +203,15 @@ export const integrationsLogic = kea<integrationsLogicType>([
 
             let replaceUrl: string = next || urls.settings('project-integrations')
 
+            // The /authorize URL was scoped to a specific team (e.g. PostHog Code's
+            // project 3), but the GitHub callback lands on a non-scoped frontend route
+            // where currentTeamId may be different. Recover the original team id from
+            // `next` (which carries `project_id=...`) so the integration lands on the
+            // team the user actually started the flow from.
+            const nextSearchPart = next?.includes('?') ? next.split('?').slice(1).join('?') : ''
+            const projectIdFromNext = new URLSearchParams(nextSearchPart).get('project_id')
+            const teamIdForIntegration = projectIdFromNext ? parseInt(projectIdFromNext, 10) : undefined
+
             try {
                 if (installation_id) {
                     if (stateToken !== getCookie('ph_github_state')) {
@@ -211,15 +220,38 @@ export const integrationsLogic = kea<integrationsLogicType>([
 
                     // GitHub omits `code` and emits `setup_action=update` when the App was already
                     // installed on the org (user lands on Configure → Save). The fresh-install path
-                    // can't run without `code`; fall back to cloning the existing installation
-                    // already linked to a sibling team in this PostHog org.
+                    // can't run without `code`. First try cloning from a sibling team that already
+                    // has it; if the installation is orphaned (no team has linked it yet), bounce
+                    // through GitHub User OAuth to mint a `code` and run the standard verify+create.
                     const isAlreadyInstalled = setup_action === 'update' || !code
 
-                    let integration: IntegrationType
+                    let integration: IntegrationType | null = null
                     if (isAlreadyInstalled) {
-                        integration = await api.integrations.githubLinkExisting({
-                            installation_id: String(installation_id),
-                        })
+                        try {
+                            integration = await api.integrations.githubLinkExisting(
+                                { installation_id: String(installation_id) },
+                                teamIdForIntegration
+                            )
+                        } catch (e) {
+                            const detail = e instanceof ApiError ? e.detail : null
+                            const isOrphanInstallation =
+                                typeof detail === 'string' && detail.includes('No team in your organization')
+                            if (!isOrphanInstallation) {
+                                throw e
+                            }
+                            // Orphan installation — kick off User OAuth round-trip.
+                            const connectFrom = new URLSearchParams(nextSearchPart).get('connect_from') ?? undefined
+                            const { oauth_url } = await api.integrations.githubOAuthAuthorize(
+                                {
+                                    installation_id: String(installation_id),
+                                    next: replaceUrl,
+                                    connect_from: connectFrom,
+                                },
+                                teamIdForIntegration
+                            )
+                            window.location.href = oauth_url
+                            return
+                        }
                     } else {
                         integration = await api.integrations.create({
                             kind: 'github',
@@ -231,7 +263,7 @@ export const integrationsLogic = kea<integrationsLogicType>([
                     // deep link) knows which install was just completed.
                     replaceUrl = combineUrl(replaceUrl, {
                         installation_id: String(installation_id),
-                        integration_id: String(integration.id),
+                        integration_id: String(integration!.id),
                     }).url
 
                     actions.loadIntegrations()
