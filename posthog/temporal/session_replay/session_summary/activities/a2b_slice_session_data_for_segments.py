@@ -8,7 +8,6 @@ read inside analyze_video_segment_activity.
 """
 
 import json
-import dataclasses
 from typing import Any, cast
 
 import structlog
@@ -73,8 +72,12 @@ async def slice_session_data_for_segments_activity(
     except ValueError:
         window_id_index = None
 
-    # One pass over the full mapping to bucket events by which segment(s) they fall into.
-    # An event with timestamp t lands in any segment with start_time <= t <= end_time.
+    # One pass over the full mapping to bucket events by which segment(s)
+    # they fall into. The inclusive-on-both-ends bound (start_ms <= t <= end_ms)
+    # matches what _find_events_in_time_range used to do per-segment, so an
+    # event landing exactly on a segment boundary gets duplicated into both
+    # adjacent segments — same as before this refactor. Consolidation downstream
+    # collapses any cross-segment duplicates.
     indexed_segments = sorted(segment_specs, key=lambda s: s.start_time)
     buckets: dict[int, list[tuple[str, list[Any], int]]] = {s.segment_index: [] for s in indexed_segments}
 
@@ -125,6 +128,6 @@ async def slice_session_data_for_segments_activity(
         await store_data_in_redis(
             redis_client=redis_client,
             redis_key=segment_key,
-            data=json.dumps(dataclasses.asdict(context) if dataclasses.is_dataclass(context) else context.model_dump()),
+            data=json.dumps(context.model_dump()),
             label=StateActivitiesEnum.SEGMENT_LLM_CONTEXT,
         )

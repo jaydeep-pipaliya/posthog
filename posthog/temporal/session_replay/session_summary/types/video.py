@@ -46,7 +46,10 @@ class PrepSessionVideoAssetResult(BaseModel):
 
     asset_id: int
     team_api_token: str
-    team_name: str
+    # Defaults to "" so an old prep result (without team_name) that completed
+    # before this field shipped can still deserialize on the post-deploy
+    # workflow body. Drop the default after one release cycle.
+    team_name: str = ""
 
 
 class UploadedVideo(BaseModel):

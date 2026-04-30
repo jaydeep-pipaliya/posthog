@@ -43,12 +43,27 @@ def _patches(asset: MagicMock, head_object_return: dict | None = None):
     mock_qs = MagicMock()
     mock_qs.select_related.return_value.get.return_value = asset
     mock_qs.get.return_value = asset
+    # finalize_rasterization wraps its read-modify-write in transaction.atomic
+    # + select_for_update; both need to be mockable here.
+    mock_qs.select_for_update.return_value.get.return_value = asset
     head_mock = MagicMock(return_value=head_object_return)
+
+    class _NoopAtomic:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, *exc):
+            return False
+
     return (
         patch("posthog.temporal.session_replay.rasterize_recording.activities.ExportedAsset.objects", mock_qs),
         patch("posthog.temporal.session_replay.rasterize_recording.activities.settings", MOCK_SETTINGS),
         patch("posthog.temporal.session_replay.rasterize_recording.activities.close_old_connections"),
         patch("posthog.temporal.session_replay.rasterize_recording.activities.object_storage.head_object", head_mock),
+        patch(
+            "posthog.temporal.session_replay.rasterize_recording.activities.transaction.atomic",
+            return_value=_NoopAtomic(),
+        ),
     ), head_mock
 
 
@@ -74,7 +89,7 @@ class TestBuildRasterizationInput:
         )
 
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(42)
 
         assert result.cached_output is None
@@ -101,7 +116,7 @@ class TestBuildRasterizationInput:
     def test_defaults(self):
         asset = _make_asset(pk=10, team_id=3, export_context={"session_recording_id": "sess-1"})
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(10)
 
         ai = result.activity_input
@@ -123,14 +138,14 @@ class TestBuildRasterizationInput:
     def test_missing_session_id_raises(self):
         asset = _make_asset(pk=99, export_context={"playback_speed": 4})
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             with pytest.raises(ValueError, match="no session_recording_id"):
                 build_rasterization_input(99)
 
     def test_none_export_context_raises(self):
         asset = _make_asset(pk=100, export_context=None)
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             with pytest.raises(ValueError, match="no session_recording_id"):
                 build_rasterization_input(100)
 
@@ -140,7 +155,7 @@ class TestBuildRasterizationInput:
             export_context={"session_recording_id": "s1", "timestamp": 10, "duration": 30},
         )
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         ai = result.activity_input
@@ -151,7 +166,7 @@ class TestBuildRasterizationInput:
     def test_duration_without_timestamp(self):
         asset = _make_asset(pk=50, export_context={"session_recording_id": "s1", "duration": 30})
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         ai = result.activity_input
@@ -162,7 +177,7 @@ class TestBuildRasterizationInput:
     def test_webm_export_format(self):
         asset = _make_asset(pk=50, export_format="video/webm", export_context={"session_recording_id": "s1"})
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
         ai = result.activity_input
         assert ai is not None
@@ -172,7 +187,7 @@ class TestBuildRasterizationInput:
     def test_gif_export_format(self):
         asset = _make_asset(pk=50, export_format="image/gif", export_context={"session_recording_id": "s1"})
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
         ai = result.activity_input
         assert ai is not None
@@ -185,7 +200,7 @@ class TestBuildRasterizationInput:
             export_context={"session_recording_id": "s1", "start_offset_s": 0, "timestamp": 999},
         )
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
         assert result.activity_input is not None
         assert result.activity_input.start_offset_s == 0
@@ -196,7 +211,7 @@ class TestBuildRasterizationInput:
             export_context={"session_recording_id": "s1", "width": 200, "height": 5000},
         )
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
         ai = result.activity_input
         assert ai is not None
@@ -214,7 +229,7 @@ class TestBuildRasterizationInput:
     def test_playback_speed_defaults(self, _name, export_context, expected_speed):
         asset = _make_asset(pk=50, export_context=export_context)
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
         assert result.activity_input is not None
         assert result.activity_input.playback_speed == expected_speed
@@ -229,7 +244,7 @@ class TestBuildRasterizationInput:
     def test_fractional_values(self, _name, export_context, field, expected_value):
         asset = _make_asset(pk=50, export_context=export_context)
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
         assert result.activity_input is not None
         assert getattr(result.activity_input, field) == expected_value
@@ -256,7 +271,7 @@ class TestBuildRasterizationCache:
     def _fingerprint_for(self, asset: MagicMock) -> str:
         """Run build with a HEAD-miss to get the fingerprint without taking the cache path."""
         patches, _ = _patches(asset, head_object_return=None)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(asset.pk)
         assert result.activity_input is not None
         return compute_params_fingerprint(result.activity_input)
@@ -273,7 +288,7 @@ class TestBuildRasterizationCache:
             content_location="exports/mp4/team-1/task-50/video.mp4",
         )
         patches, head_mock = _patches(cached_asset, head_object_return={"ContentLength": 99000})
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         head_mock.assert_called_once_with(file_key="exports/mp4/team-1/task-50/video.mp4")
@@ -292,7 +307,7 @@ class TestBuildRasterizationCache:
             content_location="exports/mp4/team-1/task-50/video.mp4",
         )
         patches, head_mock = _patches(asset, head_object_return={"ContentLength": 99000})
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         # No HEAD call because fingerprint check fails first.
@@ -307,7 +322,7 @@ class TestBuildRasterizationCache:
             content_location=None,
         )
         patches, head_mock = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         head_mock.assert_not_called()
@@ -324,7 +339,7 @@ class TestBuildRasterizationCache:
             content_location="exports/mp4/team-1/task-50/video.mp4",
         )
         patches, head_mock = _patches(gone_asset, head_object_return=None)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         head_mock.assert_called_once()
@@ -344,7 +359,7 @@ class TestBuildRasterizationCache:
             content_location="exports/mp4/team-1/task-50/video.mp4",
         )
         patches, _ = _patches(partial_asset, head_object_return={"ContentLength": 99000})
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = build_rasterization_input(50)
 
         assert result.cached_output is None
@@ -420,7 +435,7 @@ class TestFinalizeRasterization:
         result = self._make_result(file_size_bytes=12345, truncated=True)
 
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             finalize_rasterization(
                 FinalizeRasterizationInput(exported_asset_id=42, result=result, render_fingerprint="abc1234567890def")
             )
@@ -438,7 +453,7 @@ class TestFinalizeRasterization:
         asset = _make_asset(pk=42)
         result = self._make_result(s3_uri="s3://wrong-bucket/path/video.mp4")
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             with pytest.raises(ValueError, match="Unexpected s3_uri prefix"):
                 finalize_rasterization(
                     FinalizeRasterizationInput(exported_asset_id=42, result=result, render_fingerprint="x")
@@ -449,7 +464,7 @@ class TestFinalizeRasterization:
         asset = _make_asset(pk=42, export_context=None)
         result = self._make_result()
         patches, _ = _patches(asset)
-        with patches[0], patches[1], patches[2], patches[3]:
+        with patches[0], patches[1], patches[2], patches[3], patches[4]:
             finalize_rasterization(
                 FinalizeRasterizationInput(exported_asset_id=42, result=result, render_fingerprint="x")
             )

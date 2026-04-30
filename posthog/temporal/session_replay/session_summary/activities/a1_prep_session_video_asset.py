@@ -7,6 +7,7 @@ The actual video rendering is executed as a child workflow by the parent summari
 
 from datetime import timedelta
 
+from django.db import transaction
 from django.utils.timezone import now
 
 import structlog
@@ -26,6 +27,7 @@ from ee.hogai.session_summaries.constants import (
     FULL_VIDEO_EXPORT_FORMAT,
     MIN_SESSION_DURATION_FOR_VIDEO_SUMMARY_S,
 )
+from ee.models.session_summaries import SingleSessionSummary
 
 logger = structlog.get_logger(__name__)
 
@@ -33,11 +35,44 @@ VIDEO_ANALYSIS_PLAYBACK_SPEED = 8
 VIDEO_ANALYSIS_RECORDING_FPS = 3  # 3 frames per 1 second of original real time
 
 
+def _refresh_asset_input_params_locked(asset_id: int, session_id: str) -> None:
+    """Atomically reload export_context, overwrite the input fields A1 controls,
+    and save. SELECT FOR UPDATE serializes against finalize_rasterization's
+    own read-modify-write of the same JSONB column."""
+    with transaction.atomic():
+        asset = ExportedAsset.objects.select_for_update().get(id=asset_id)
+        ctx = dict(asset.export_context or {})
+        ctx["session_recording_id"] = session_id
+        ctx["playback_speed"] = VIDEO_ANALYSIS_PLAYBACK_SPEED
+        ctx["recording_fps"] = VIDEO_ANALYSIS_RECORDING_FPS
+        ctx["show_metadata_footer"] = True
+        if ctx != asset.export_context:
+            asset.export_context = ctx
+            asset.save(update_fields=["export_context"])
+
+
 @temporalio.activity.defn
 async def prep_session_video_asset_activity(
     inputs: VideoSummarySingleSessionInputs,
 ) -> PrepSessionVideoAssetResult | None:
     """Prepare session video export: find or create ExportedAsset record."""
+    # Late race-window guard: bail before the expensive video path if another
+    # flow stored the summary between the workflow-entry check_summary_exists
+    # and this activity. Without this, the workflow proceeds to rasterize,
+    # upload to Gemini, fan out a3 segments, and re-emit Kafka tags/embeddings/
+    # signals before a5c finally no-ops on the duplicate write.
+    existing_summary = await database_sync_to_async(SingleSessionSummary.objects.get_summary, thread_sensitive=False)(
+        team_id=inputs.team_id,
+        session_id=inputs.session_id,
+        extra_summary_context=inputs.extra_summary_context,
+    )
+    if existing_summary is not None:
+        logger.debug(
+            f"Summary already exists for session {inputs.session_id}, skipping video processing",
+            session_id=inputs.session_id,
+            signals_type="session-summaries",
+        )
+        return None
     team = await Team.objects.aget(id=inputs.team_id)
     metadata = await database_sync_to_async(SessionReplayEvents().get_metadata)(
         session_id=inputs.session_id,
@@ -67,15 +102,14 @@ async def prep_session_video_asset_activity(
     ).afirst()
 
     if existing_asset:
-        # Refresh the params we control so a constants change triggers re-render via fingerprint mismatch.
-        ctx = dict(existing_asset.export_context or {})
-        ctx["session_recording_id"] = inputs.session_id
-        ctx["playback_speed"] = VIDEO_ANALYSIS_PLAYBACK_SPEED
-        ctx["recording_fps"] = VIDEO_ANALYSIS_RECORDING_FPS
-        ctx["show_metadata_footer"] = True
-        if ctx != existing_asset.export_context:
-            existing_asset.export_context = ctx
-            await existing_asset.asave(update_fields=["export_context"])
+        # Refresh the params we control so a constants change triggers re-render
+        # via fingerprint mismatch. Holds a row lock so this read-modify-write
+        # serializes against finalize_rasterization (which also updates
+        # export_context); without it, last writer wins on the JSON column and
+        # cache fields can be silently dropped.
+        await database_sync_to_async(_refresh_asset_input_params_locked, thread_sensitive=False)(
+            existing_asset.id, inputs.session_id
+        )
         logger.debug(
             f"Reusing existing video export asset {existing_asset.id} for session {inputs.session_id}",
             session_id=inputs.session_id,

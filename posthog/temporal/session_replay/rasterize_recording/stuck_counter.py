@@ -54,6 +54,19 @@ async def bump_stuck_counter_activity(inputs: BumpStuckCounterInput) -> None:
     )
 
 
+@activity.defn
+async def clear_stuck_counter_activity(inputs: BumpStuckCounterInput) -> None:
+    """DEL the per-session counter on a successful rasterize.
+
+    Without this, a session that fails sporadically (once every <2h, succeeding
+    in between) would accumulate failures in the rolling TTL window and
+    eventually trip the threshold despite the intermittent successes.
+    """
+    redis_client = get_async_client()
+    key = _stuck_key(inputs.team_id, inputs.session_id)
+    await redis_client.delete(key)
+
+
 async def read_stuck_session_ids(
     redis_client: AsyncRedis,
     team_id: int,

@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 
 import structlog
 from temporalio import activity
@@ -130,32 +130,36 @@ def _try_synthesize_cached_output(
 @activity.defn
 def finalize_rasterization(inputs: FinalizeRasterizationInput) -> None:
     close_old_connections()
-
-    asset = ExportedAsset.objects.get(pk=inputs.exported_asset_id)
     result = inputs.result
 
     prefix = f"s3://{settings.OBJECT_STORAGE_BUCKET}/"
     if not result.s3_uri.startswith(prefix):
         raise ValueError(f"Unexpected s3_uri prefix: {result.s3_uri} (expected {prefix}...)")
 
-    asset.content_location = result.s3_uri[len(prefix) :]
+    # Hold a row lock for the read-modify-write of export_context so we
+    # serialize against prep_session_video_asset_activity (which also updates
+    # the JSON column). Without the lock, last writer wins and cache fields
+    # the fingerprint cache relies on can be silently dropped.
+    with transaction.atomic():
+        asset = ExportedAsset.objects.select_for_update().get(pk=inputs.exported_asset_id)
+        asset.content_location = result.s3_uri[len(prefix) :]
 
-    if asset.export_context is None:
-        asset.export_context = {}
-    asset.export_context.update(
-        result.model_dump(
-            include={
-                "video_duration_s",
-                "playback_speed",
-                "truncated",
-                "file_size_bytes",
-                "inactivity_periods",
-            }
+        if asset.export_context is None:
+            asset.export_context = {}
+        asset.export_context.update(
+            result.model_dump(
+                include={
+                    "video_duration_s",
+                    "playback_speed",
+                    "truncated",
+                    "file_size_bytes",
+                    "inactivity_periods",
+                }
+            )
         )
-    )
-    asset.export_context[_RENDER_FINGERPRINT_KEY] = inputs.render_fingerprint
+        asset.export_context[_RENDER_FINGERPRINT_KEY] = inputs.render_fingerprint
 
-    asset.save(update_fields=["content_location", "export_context"])
+        asset.save(update_fields=["content_location", "export_context"])
 
     logger.info(
         "rasterization_finalized",

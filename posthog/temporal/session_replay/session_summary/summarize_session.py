@@ -218,6 +218,19 @@ async def get_llm_single_session_summary_activity(
     inputs: SingleSessionSummaryInputs,
 ) -> None:
     """Summarize a single session in one call and store/cache in Redis (to avoid hitting Temporal memory limits)"""
+    # Late race-window guard: another flow (notably the group-summary path,
+    # which uses a different workflow id namespace from SummarizeSingleSession
+    # Workflow) can store the summary between the workflow-entry check in
+    # ensure_llm_single_session_summary and this activity. The store guard in
+    # _store_final_summary_in_db_from_activity catches duplicate writes, but
+    # avoids redundant LLM cost only if we re-check here.
+    summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
+        team_id=inputs.team_id,
+        session_ids=[inputs.session_id],
+        extra_summary_context=inputs.extra_summary_context,
+    )
+    if summary_exists.get(inputs.session_id):
+        return None
     # Base key includes session ids, so when summarizing this session again, but with different inputs (or order) - we don't use cache
     redis_client, redis_input_key, _ = get_redis_state_client(
         key_base=inputs.redis_key_base,

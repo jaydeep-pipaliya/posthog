@@ -11,7 +11,7 @@ with wf.unsafe.imports_passed_through():
     from django.conf import settings
 
 from .activities import build_rasterization_input, finalize_rasterization
-from .stuck_counter import BumpStuckCounterInput, bump_stuck_counter_activity
+from .stuck_counter import BumpStuckCounterInput, bump_stuck_counter_activity, clear_stuck_counter_activity
 from .types import (
     BuildRasterizationResult,
     FinalizeRasterizationInput,
@@ -39,10 +39,12 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
     @wf.run
     async def run(self, inputs: RasterizeRecordingInputs) -> RasterizationActivityOutput:
         try:
-            return await self._run(inputs)
+            result = await self._run(inputs)
         except Exception:
             await self._maybe_bump_stuck_counter()
             raise
+        await self._maybe_clear_stuck_counter()
+        return result
 
     async def _maybe_bump_stuck_counter(self) -> None:
         info = wf.info()
@@ -50,7 +52,16 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
         max_attempts = retry_policy.maximum_attempts if retry_policy else 1
         # Only bump when this is the LAST scheduled attempt — otherwise a
         # recoverable failure-then-succeed would over-count by max_attempts.
-        if max_attempts is None or max_attempts <= 0 or info.attempt < max_attempts:
+        if max_attempts is None or max_attempts <= 0:
+            # Unlimited-retry policies disable the stuck-detection loop. All
+            # production callers set maximum_attempts; surface this so a future
+            # caller that drops it doesn't quietly lose the gate.
+            wf.logger.warning(
+                "rasterize.stuck_counter_skipped_no_max_attempts",
+                extra={"max_attempts": max_attempts, "attempt": info.attempt},
+            )
+            return
+        if info.attempt < max_attempts:
             return
         session_id = info.typed_search_attributes.get(POSTHOG_SESSION_RECORDING_ID_KEY)
         team_id = info.typed_search_attributes.get(POSTHOG_TEAM_ID_KEY)
@@ -65,6 +76,22 @@ class RasterizeRecordingWorkflow(PostHogWorkflow):
             )
         except Exception as exc:
             wf.logger.warning("rasterize.stuck_counter_bump_failed", extra={"error": str(exc)})
+
+    async def _maybe_clear_stuck_counter(self) -> None:
+        info = wf.info()
+        session_id = info.typed_search_attributes.get(POSTHOG_SESSION_RECORDING_ID_KEY)
+        team_id = info.typed_search_attributes.get(POSTHOG_TEAM_ID_KEY)
+        if session_id is None or team_id is None:
+            return
+        try:
+            await wf.execute_activity(
+                clear_stuck_counter_activity,
+                BumpStuckCounterInput(team_id=team_id, session_id=session_id),
+                start_to_close_timeout=dt.timedelta(seconds=10),
+                retry_policy=common.RetryPolicy(maximum_attempts=2),
+            )
+        except Exception as exc:
+            wf.logger.warning("rasterize.stuck_counter_clear_failed", extra={"error": str(exc)})
 
     async def _run(self, inputs: RasterizeRecordingInputs) -> RasterizationActivityOutput:
         retry_policy = common.RetryPolicy(maximum_attempts=3)

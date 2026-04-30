@@ -1,7 +1,6 @@
 """Unit tests for slice_session_data_for_segments_activity."""
 
 import json
-from dataclasses import asdict
 
 import pytest
 from unittest.mock import AsyncMock, patch
@@ -184,7 +183,7 @@ async def test_slice_reduces_url_and_window_maps_to_keys_present_in_slice():
 
 @pytest.mark.asyncio
 async def test_slice_round_trips_through_pydantic():
-    """Verify the json-dump-via-asdict shape can be loaded back into the model."""
+    """Verify the json-dump-via-model_dump shape can be loaded back into the model."""
     seg = SegmentLlmContext(
         events=[],
         simplified_events_columns=["a", "b"],
@@ -192,6 +191,6 @@ async def test_slice_round_trips_through_pydantic():
         window_mapping_reversed={"k": "v"},
         session_start_time_str="2024-01-01T00:00:00Z",
     )
-    encoded = json.dumps(asdict(seg) if hasattr(seg, "__dataclass_fields__") else seg.model_dump())
+    encoded = json.dumps(seg.model_dump())
     decoded = SegmentLlmContext(**json.loads(encoded))
     assert decoded == seg
