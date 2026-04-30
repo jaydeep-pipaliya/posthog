@@ -69,8 +69,7 @@ class RasterizationActivityOutput(BaseModel, frozen=True):
 class FinalizeRasterizationInput(BaseModel, frozen=True):
     exported_asset_id: int
     result: RasterizationActivityOutput
-    # Default for backward compat across the deploy; drop after one release.
-    render_fingerprint: str = ""
+    render_fingerprint: str
 
 
 # Output destination fields — excluded so bucket/prefix changes don't invalidate caches.
@@ -85,8 +84,7 @@ def compute_params_fingerprint(activity_input: "RasterizationActivityInput") -> 
 class BuildRasterizationResult(BaseModel, frozen=True):
     activity_input: RasterizationActivityInput | None = None
     cached_output: RasterizationActivityOutput | None = None
-    # Default for backward compat across the deploy; drop after one release.
-    render_fingerprint: str = ""
+    render_fingerprint: str
 
     @model_validator(mode="after")
     def _exactly_one(self) -> "BuildRasterizationResult":

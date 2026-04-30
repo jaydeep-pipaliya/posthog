@@ -44,7 +44,7 @@ class PrepSessionVideoAssetResult(BaseModel):
 
     asset_id: int
     team_api_token: str
-    team_name: str = ""  # default for backward compat across the deploy; drop after one release
+    team_name: str
 
 
 class UploadedVideo(BaseModel):
