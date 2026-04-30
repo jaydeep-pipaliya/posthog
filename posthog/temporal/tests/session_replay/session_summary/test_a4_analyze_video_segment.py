@@ -8,6 +8,8 @@ from posthog.temporal.session_replay.session_summary.activities.video_based.a4_a
     analyze_video_segment_activity,
 )
 from posthog.temporal.session_replay.session_summary.types.video import (
+    SegmentEventEntry,
+    SegmentLlmContext,
     UploadedVideo,
     VideoSegmentSpec,
     VideoSummarySingleSessionInputs,
@@ -118,3 +120,84 @@ async def test_returns_empty_when_response_has_no_bullets():
         )
 
     assert result == []
+
+
+@pytest.mark.asyncio
+async def test_passes_cached_events_into_prompt_when_redis_hit():
+    # When the slice activity has pre-populated the per-segment Redis key, the activity
+    # should embed those events into the LLM prompt's events_section rather than using
+    # the empty/no-events fallback.
+    cached_context = SegmentLlmContext(
+        events=[
+            SegmentEventEntry(event_id="evt-1", data=["evt-1", "click", "/login"]),
+            SegmentEventEntry(event_id="evt-2", data=["evt-2", "submit", "/login"]),
+        ],
+        simplified_events_columns=["event_id", "$event_type", "$current_url"],
+        url_mapping_reversed={"/login": "https://app.example.com/login"},
+        window_mapping_reversed={},
+        session_start_time_str="2024-01-01T00:00:00Z",
+    )
+    factory = _gemini_responder("* 00:00 - 00:30: User logged in")
+    captured_prompt: list[str] = []
+
+    async def _capture_generate(**kwargs):
+        # The text prompt is the second item in `contents` (first is the FileData part).
+        for item in kwargs.get("contents", []):
+            if isinstance(item, str):
+                captured_prompt.append(item)
+        response = MagicMock()
+        response.text = "* 00:00 - 00:30: User logged in"
+        return response
+
+    factory.return_value.models.generate_content = AsyncMock(side_effect=_capture_generate)
+
+    with (
+        patch(f"{ACTIVITY_MODULE}.get_data_class_from_redis", new=AsyncMock(return_value=cached_context)),
+        patch(f"{ACTIVITY_MODULE}.genai.AsyncClient", new=factory),
+    ):
+        result = await ActivityEnvironment().run(
+            analyze_video_segment_activity, _inputs(), _uploaded(), _segment(), "trace", "team"
+        )
+
+    assert len(result) == 1
+    assert captured_prompt, "Prompt should have been captured"
+    prompt_text = captured_prompt[0]
+    # Cached events should land in the events section of the prompt
+    assert "<tracked_events>" in prompt_text
+    assert "evt-1" in prompt_text
+    assert "evt-2" in prompt_text
+
+
+@pytest.mark.asyncio
+async def test_omits_events_section_when_redis_returns_empty_events():
+    # Cached context with no events should fall through to the no-events prompt branch
+    # (events_section stays empty rather than being filled with "No tracked events…").
+    cached_context = SegmentLlmContext(
+        events=[],
+        simplified_events_columns=["event_id"],
+        url_mapping_reversed={},
+        window_mapping_reversed={},
+        session_start_time_str="2024-01-01T00:00:00Z",
+    )
+    factory = _gemini_responder("* 00:00 - 00:30: Static")
+    captured_prompt: list[str] = []
+
+    async def _capture_generate(**kwargs):
+        for item in kwargs.get("contents", []):
+            if isinstance(item, str):
+                captured_prompt.append(item)
+        response = MagicMock()
+        response.text = "* 00:00 - 00:30: Static"
+        return response
+
+    factory.return_value.models.generate_content = AsyncMock(side_effect=_capture_generate)
+
+    with (
+        patch(f"{ACTIVITY_MODULE}.get_data_class_from_redis", new=AsyncMock(return_value=cached_context)),
+        patch(f"{ACTIVITY_MODULE}.genai.AsyncClient", new=factory),
+    ):
+        await ActivityEnvironment().run(
+            analyze_video_segment_activity, _inputs(), _uploaded(), _segment(), "trace", "team"
+        )
+
+    assert "<tracked_events>" not in captured_prompt[0]

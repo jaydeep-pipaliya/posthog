@@ -401,15 +401,16 @@ async def ensure_llm_single_session_summary(
         inactivity_periods=inactivity_periods,
     )
 
-    await temporalio.workflow.execute_activity(
-        slice_session_data_for_segments_activity,
-        args=(video_inputs, segment_specs),
-        start_to_close_timeout=timedelta(minutes=2),
-        retry_policy=retry_policy,
-    )
-
-    # Cleanup must run even on failure of the analyze/consolidate/store flow.
+    # Cleanup must run even on failure of the slice/analyze/consolidate/store flow.
+    # Slice runs inside the guard so a slice failure still triggers Gemini file cleanup.
     try:
+        await temporalio.workflow.execute_activity(
+            slice_session_data_for_segments_activity,
+            args=(video_inputs, segment_specs),
+            start_to_close_timeout=timedelta(minutes=2),
+            retry_policy=retry_policy,
+        )
+
         _set_phase(progress, "analyzing_segments")
         if progress is not None:
             progress["segments_total"] = len(segment_specs)
