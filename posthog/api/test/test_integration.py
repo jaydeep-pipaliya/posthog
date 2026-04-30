@@ -1883,6 +1883,8 @@ class TestGitHubLinkExisting:
 
     @pytest.fixture(autouse=True)
     def setup_environment(self, db):
+        from posthog.models.user_integration import UserIntegration
+
         self.organization = Organization.objects.create(name="Test Org")
         self.source_team = Team.objects.create(organization=self.organization, name="Source Team")
         self.dest_team = Team.objects.create(organization=self.organization, name="Dest Team")
@@ -1906,8 +1908,19 @@ class TestGitHubLinkExisting:
             created_by=self.user,
         )
 
+        # Personal GitHub integration that proves the requesting user has access to the
+        # GitHub installation — required by the link_existing security check.
+        self.user_github_integration = UserIntegration.objects.create(
+            user=self.user,
+            kind="github",
+            integration_id="12345",
+            config={"account": {"type": "Organization", "name": "acme"}},
+            sensitive_config={"access_token": "ghu_user"},
+        )
+
+    @patch("posthog.models.integration.GitHubIntegration.verify_user_installation_access", return_value=True)
     @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
-    def test_link_existing_clones_integration_to_dest_team(self, mock_from_install, client: HttpClient):
+    def test_link_existing_clones_integration_to_dest_team(self, mock_from_install, mock_verify, client: HttpClient):
         client.force_login(self.user)
 
         cloned = Integration.objects.create(
@@ -1933,6 +1946,7 @@ class TestGitHubLinkExisting:
         )
 
         assert response.status_code == status.HTTP_200_OK
+        mock_verify.assert_called_once_with("12345", "ghu_user")
         mock_from_install.assert_called_once_with("12345", self.dest_team.pk, self.user)
 
         cloned.refresh_from_db()
@@ -2007,8 +2021,11 @@ class TestGitHubLinkExisting:
         assert "missing installation_id" in response.json()["detail"]
         mock_from_install.assert_not_called()
 
+    @patch("posthog.models.integration.GitHubIntegration.verify_user_installation_access", return_value=True)
     @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
-    def test_link_existing_by_installation_id_links_to_dest_team(self, mock_from_install, client: HttpClient):
+    def test_link_existing_by_installation_id_links_to_dest_team(
+        self, mock_from_install, mock_verify, client: HttpClient
+    ):
         client.force_login(self.user)
 
         cloned = Integration.objects.create(
@@ -2028,6 +2045,7 @@ class TestGitHubLinkExisting:
         )
 
         assert response.status_code == status.HTTP_200_OK
+        mock_verify.assert_called_once_with("12345", "ghu_user")
         mock_from_install.assert_called_once_with("12345", self.dest_team.pk, self.user)
 
     @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
@@ -2069,6 +2087,65 @@ class TestGitHubLinkExisting:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "source_team_id or installation_id is required" in response.json()["detail"]
+
+    @patch("posthog.models.integration.GitHubIntegration.verify_user_installation_access")
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_rejects_user_without_personal_github(
+        self, mock_from_install, mock_verify, client: HttpClient
+    ):
+        # Stranger from the same org has no personal GitHub UserIntegration; can't prove access.
+        stranger = User.objects.create_and_join(
+            self.organization, "stranger@posthog.com", "stranger", level=OrganizationMembership.Level.ADMIN
+        )
+        client.force_login(stranger)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_team_id": self.source_team.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "connect your personal GitHub account" in response.json()["detail"]
+        mock_verify.assert_not_called()
+        mock_from_install.assert_not_called()
+
+    @patch("posthog.models.integration.GitHubIntegration.verify_user_installation_access", return_value=False)
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_rejects_user_without_installation_access(
+        self, mock_from_install, mock_verify, client: HttpClient
+    ):
+        # User has a personal GitHub integration but GitHub says they can't see this installation.
+        client.force_login(self.user)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_team_id": self.source_team.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "connect your personal GitHub account" in response.json()["detail"]
+        mock_verify.assert_called_once_with("12345", "ghu_user")
+        mock_from_install.assert_not_called()
+
+    @patch("posthog.models.integration.GitHubIntegration.verify_user_installation_access")
+    @patch("posthog.models.integration.GitHubIntegration.integration_from_installation_id")
+    def test_link_existing_surfaces_verify_network_failures(self, mock_from_install, mock_verify, client: HttpClient):
+        import requests as _requests
+
+        mock_verify.side_effect = _requests.RequestException("boom")
+        client.force_login(self.user)
+
+        response = client.post(
+            f"/api/environments/{self.dest_team.pk}/integrations/github/link_existing/",
+            {"source_team_id": self.source_team.id},
+            content_type="application/json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "Failed to verify installation access" in response.json()["detail"]
+        mock_from_install.assert_not_called()
 
 
 class TestGitHubOAuthAuthorize:

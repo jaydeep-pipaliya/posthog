@@ -55,7 +55,7 @@ from posthog.models.integration import (
     TwilioIntegration,
     defer_repository_cache_fields,
 )
-from posthog.models.user_integration import user_github_integration_from_installation
+from posthog.models.user_integration import UserIntegration, user_github_integration_from_installation
 from posthog.permissions import (
     AccessControlPermission,
     APIScopePermission,
@@ -884,6 +884,46 @@ class IntegrationViewSet(
         installation_id = (source.config or {}).get("installation_id")
         if not installation_id:
             raise ValidationError("Source integration is missing installation_id")
+
+        # Confirm the requesting user actually has access to this GitHub installation
+        # before we clone the team integration. Without this, any org member could clone
+        # any sibling team's installation onto another team they have access to.
+        # We check via the user's stored UserIntegration token (set up in Linked Accounts
+        # or auto-created during a fresh install) so the UX stays one-click — no extra
+        # GitHub round-trip when the user already has personal GitHub credentials.
+        if not re.fullmatch(r"\d{1,20}", str(installation_id)):
+            raise ValidationError("Invalid installation_id on source integration")
+        user_github_integration = (
+            UserIntegration.objects.filter(user=request.user, kind="github").order_by("-created_at").first()
+        )
+        user_access_token = (
+            user_github_integration.sensitive_config.get("access_token") if user_github_integration else None
+        )
+        if not user_access_token:
+            raise ValidationError(
+                "You must connect your personal GitHub account (via Linked Accounts) before linking an existing "
+                "installation, to confirm you have access to the GitHub App installation."
+            )
+        try:
+            has_access = GitHubIntegration.verify_user_installation_access(str(installation_id), user_access_token)
+        except requests.RequestException:
+            logger.warning(
+                "github_link_existing: installation ownership check failed",
+                installation_id=installation_id,
+                user_id=request.user.id,
+                exc_info=True,
+            )
+            raise ValidationError("Failed to verify installation access")
+        if not has_access:
+            logger.warning(
+                "github_link_existing: user does not have access to installation",
+                installation_id=installation_id,
+                user_id=request.user.id,
+            )
+            raise ValidationError(
+                "You must connect your personal GitHub account (via Linked Accounts) before linking an existing "
+                "installation, to confirm you have access to the GitHub App installation."
+            )
 
         instance = GitHubIntegration.integration_from_installation_id(
             str(installation_id), self.team_id, cast(User, request.user)
