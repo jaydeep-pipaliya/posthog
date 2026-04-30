@@ -31,11 +31,11 @@ from posthog.sync import database_sync_to_async
 from posthog.temporal.ai import AI_WORKFLOWS
 from posthog.temporal.session_replay.session_summary import SESSION_SUMMARY_WORKFLOWS
 from posthog.temporal.session_replay.session_summary.activities.capture_timing import capture_timing_activity
-from posthog.temporal.session_replay.session_summary.activities.patterns import (
-    assign_events_to_patterns_activity,
-    combine_patterns_from_chunks_activity,
-    extract_session_group_patterns_activity,
-    split_session_summaries_into_chunks_for_patterns_extraction_activity,
+from posthog.temporal.session_replay.session_summary.activities.check_summary_exists import (
+    check_summary_exists_activity,
+)
+from posthog.temporal.session_replay.session_summary.activities.event_based.get_llm_single_session_summary import (
+    get_llm_single_session_summary_activity,
 )
 from posthog.temporal.session_replay.session_summary.state import (
     StateActivitiesEnum,
@@ -45,23 +45,27 @@ from posthog.temporal.session_replay.session_summary.state import (
     get_redis_state_client,
     store_data_in_redis,
 )
-from posthog.temporal.session_replay.session_summary.summarize_session import (
-    check_summary_exists_activity,
-    get_llm_single_session_summary_activity,
-)
-from posthog.temporal.session_replay.session_summary.summarize_session_group import (
-    SessionGroupSummaryInputs,
-    SummarizeSessionGroupWorkflow,
-    _start_session_group_summary_workflow,
-    execute_summarize_session_group,
+from posthog.temporal.session_replay.session_summary.types.inputs import SingleSessionSummaryInputs
+from posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events import (
     fetch_session_batch_events_activity,
 )
-from posthog.temporal.session_replay.session_summary.types.group import (
+from posthog.temporal.session_replay.session_summary_group.activities.group_patterns import (
+    assign_events_to_patterns_activity,
+    combine_patterns_from_chunks_activity,
+    extract_session_group_patterns_activity,
+    split_session_summaries_into_chunks_for_patterns_extraction_activity,
+)
+from posthog.temporal.session_replay.session_summary_group.types import (
     SessionGroupSummaryOfSummariesInputs,
     SessionGroupSummaryPatternsExtractionChunksInputs,
     SessionSummaryStreamUpdate,
 )
-from posthog.temporal.session_replay.session_summary.types.single import SingleSessionSummaryInputs
+from posthog.temporal.session_replay.session_summary_group.workflow import (
+    SessionGroupSummaryInputs,
+    SummarizeSessionGroupWorkflow,
+    _start_session_group_summary_workflow,
+    execute_summarize_session_group,
+)
 from posthog.temporal.tests.session_replay.session_summary.conftest import AsyncRedisTestContext
 
 from ee.hogai.session_summaries.constants import SESSION_SUMMARIES_MODEL
@@ -223,7 +227,7 @@ async def test_extract_session_group_patterns_activity_standalone(
         patch("ee.hogai.session_summaries.llm.consume.call_llm") as mock_call_llm,
         patch("temporalio.activity.info") as mock_activity_info,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect"
         ) as mock_async_connect,
     ):
         mock_activity_info.return_value.workflow_id = "test_workflow_id"
@@ -323,7 +327,7 @@ async def test_assign_events_to_patterns_activity_standalone(
         patch("ee.hogai.session_summaries.llm.consume.call_llm") as mock_call_llm,
         patch("temporalio.activity.info") as mock_activity_info,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect"
         ) as mock_async_connect,
     ):
         mock_activity_info.return_value.workflow_id = "test_workflow_id"
@@ -435,7 +439,7 @@ async def test_assign_events_to_patterns_threshold_check(
         patch("ee.hogai.session_summaries.llm.consume.call_llm") as mock_call_llm,
         patch("temporalio.activity.info") as mock_activity_info,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect"
         ) as mock_async_connect,
     ):
         mock_activity_info.return_value.workflow_id = "test_workflow_id"
@@ -466,7 +470,7 @@ async def test_assign_events_to_patterns_threshold_check(
         patch("ee.hogai.session_summaries.llm.consume.call_llm") as mock_call_llm,
         patch("temporalio.activity.info") as mock_activity_info,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect"
         ) as mock_async_connect,
     ):
         mock_activity_info.return_value.workflow_id = "test_workflow_id"
@@ -590,7 +594,7 @@ async def test_assign_events_to_patterns_filters_non_blocking_exceptions(
         patch("ee.hogai.session_summaries.llm.consume.call_llm") as mock_call_llm,
         patch("temporalio.activity.info") as mock_activity_info,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect"
         ) as mock_async_connect,
     ):
         # Setup mocks
@@ -762,7 +766,7 @@ async def test_non_blocking_exceptions_dont_fail_enrichment_ratio(
         patch("ee.hogai.session_summaries.llm.consume.call_llm") as mock_call_llm,
         patch("temporalio.activity.info") as mock_activity_info,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect"
         ) as mock_async_connect,
     ):
         # Setup mocks
@@ -853,11 +857,11 @@ class TestSummarizeSessionGroupWorkflow:
             # Mock DB calls
             patch.object(Team.objects, "aget", new=AsyncMock(return_value=team)),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session_group.SessionReplayEvents.get_group_metadata",
+                "posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events.SessionReplayEvents.get_group_metadata",
                 return_value=MockMetadataDict(),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session_group._get_db_events_per_page",
+                "posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events._get_db_events_per_page",
                 return_value=mock_cached_session_batch_events_query_response_factory(session_ids),
             ),
             # Mock deterministic hex generation
@@ -868,7 +872,7 @@ class TestSummarizeSessionGroupWorkflow:
             ),
             # Mock async_connect for progress signals in activities
             patch(
-                "posthog.temporal.session_replay.session_summary.activities.patterns.async_connect",
+                "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.async_connect",
                 return_value=mock_client,
             ),
         ):
@@ -970,7 +974,7 @@ class TestSummarizeSessionGroupWorkflow:
             yield (SessionSummaryStreamUpdate.FINAL_RESULT, (expected_patterns, "session-group-summary-id"))
 
         with patch(
-            "posthog.temporal.session_replay.session_summary.summarize_session_group._start_session_group_summary_workflow",
+            "posthog.temporal.session_replay.session_summary_group.workflow._start_session_group_summary_workflow",
             return_value=mock_workflow_generator(),
         ):
             # Collect all results from the async generator
@@ -1045,7 +1049,7 @@ class TestSummarizeSessionGroupWorkflow:
         mock_client.start_workflow = AsyncMock(return_value=mock_handle)
 
         with patch(
-            "posthog.temporal.session_replay.session_summary.summarize_session_group.async_connect",
+            "posthog.temporal.session_replay.session_summary_group.workflow.async_connect",
             return_value=mock_client,
         ):
             # Collect results from the async generator
@@ -1335,7 +1339,7 @@ class TestPatternExtractionChunking:
 
         # Mock token estimation to ensure all sessions fit in a single chunk
         with patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.estimate_tokens_from_strings"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.estimate_tokens_from_strings"
         ) as mock_estimate:
             # Mock token counts: base template=1000, each summary=500
             mock_estimate.side_effect = [1000, 500, 500]  # Total: 2000 < 150000
@@ -1398,7 +1402,7 @@ class TestPatternExtractionChunking:
         # - session1 goes into the next chunk (80k + 70k + 1k base > 150k)
         # - session2 fits together with session1 (70k + 500 + 1k base < 150k)
         with patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.estimate_tokens_from_strings"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.estimate_tokens_from_strings"
         ) as mock_estimate:
             mock_estimate.side_effect = [1000, 80000, 70000, 500]
 
@@ -1464,7 +1468,7 @@ class TestPatternExtractionChunking:
         # session-3: 600 (fits normally)
         with (
             patch(
-                "posthog.temporal.session_replay.session_summary.activities.patterns.estimate_tokens_from_strings"
+                "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.estimate_tokens_from_strings"
             ) as mock_estimate,
             patch("temporalio.activity.logger") as mock_logger,
         ):
@@ -1561,7 +1565,7 @@ async def test_combine_patterns_from_chunks_activity(
     # Mock the LLM combination function
     with (
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.get_llm_session_group_patterns_combination"
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.get_llm_session_group_patterns_combination"
         ) as mock_combine,
         patch("temporalio.activity.info") as mock_activity_info,
     ):
@@ -1640,15 +1644,15 @@ async def test_run_patterns_extraction_with_chunking_and_redis_keys(
     # Apply mocks and run the activity
     with (
         patch(
-            "posthog.temporal.session_replay.session_summary.summarize_session_group.split_session_summaries_into_chunks_for_patterns_extraction_activity",
+            "posthog.temporal.session_replay.session_summary_group.workflow.split_session_summaries_into_chunks_for_patterns_extraction_activity",
             new_callable=AsyncMock,
         ) as mock_split,
         patch(
-            "posthog.temporal.session_replay.session_summary.summarize_session_group.extract_session_group_patterns_activity",
+            "posthog.temporal.session_replay.session_summary_group.workflow.extract_session_group_patterns_activity",
             new_callable=AsyncMock,
         ) as mock_extract,
         patch(
-            "posthog.temporal.session_replay.session_summary.activities.patterns.get_llm_session_group_patterns_combination",
+            "posthog.temporal.session_replay.session_summary_group.activities.group_patterns.get_llm_session_group_patterns_combination",
             new_callable=AsyncMock,
         ) as mock_llm_combine,
         patch("temporalio.workflow.execute_activity") as mock_execute_activity,
@@ -1911,7 +1915,7 @@ class TestSessionBatchFetchExpectedSkips:
     @pytest.mark.asyncio
     async def test_short_sessions_are_expected_skips(self, ateam: Team, auser: User):
         """Sessions shorter than MIN_SESSION_DURATION_FOR_SUMMARY_MS should be expected skips."""
-        from posthog.temporal.session_replay.session_summary.types.group import SessionBatchFetchOutput
+        from posthog.temporal.session_replay.session_summary_group.types import SessionBatchFetchOutput
 
         # Only short sessions - we're testing that duration check works
         session_ids = ["short-session-1", "short-session-2"]
@@ -1942,7 +1946,9 @@ class TestSessionBatchFetchExpectedSkips:
                 "posthog.session_recordings.queries.session_replay_events.SessionReplayEvents.get_group_metadata",
                 return_value=mock_metadata,
             ),
-            patch("posthog.temporal.session_replay.session_summary.summarize_session_group.get_async_client"),
+            patch(
+                "posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events.get_async_client"
+            ),
         ):
             result = await fetch_session_batch_events_activity(inputs)
 
@@ -1956,7 +1962,7 @@ class TestSessionBatchFetchExpectedSkips:
     @pytest.mark.asyncio
     async def test_sessions_without_metadata_are_expected_skips(self, ateam: Team, auser: User):
         """Sessions without metadata should be expected skips."""
-        from posthog.temporal.session_replay.session_summary.types.group import SessionBatchFetchOutput
+        from posthog.temporal.session_replay.session_summary_group.types import SessionBatchFetchOutput
 
         session_ids = ["no-metadata-session", "has-metadata-session"]
         inputs = SessionGroupSummaryInputs(
@@ -1986,7 +1992,9 @@ class TestSessionBatchFetchExpectedSkips:
                 "posthog.session_recordings.queries.session_replay_events.SessionReplayEvents.get_group_metadata",
                 return_value=mock_metadata,
             ),
-            patch("posthog.temporal.session_replay.session_summary.summarize_session_group.get_async_client"),
+            patch(
+                "posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events.get_async_client"
+            ),
         ):
             result = await fetch_session_batch_events_activity(inputs)
 
@@ -1997,7 +2005,7 @@ class TestSessionBatchFetchExpectedSkips:
     @pytest.mark.asyncio
     async def test_only_short_sessions_are_skipped_early(self, ateam: Team, auser: User):
         """Only short sessions should be skipped during early filtering; longer ones proceed."""
-        from posthog.temporal.session_replay.session_summary.types.group import SessionBatchFetchOutput
+        from posthog.temporal.session_replay.session_summary_group.types import SessionBatchFetchOutput
 
         short_sessions = [f"short-{i}" for i in range(5)]
         normal_sessions = [f"normal-{i}" for i in range(4)]
@@ -2032,7 +2040,9 @@ class TestSessionBatchFetchExpectedSkips:
                 "posthog.session_recordings.queries.session_replay_events.SessionReplayEvents.get_group_metadata",
                 return_value=mock_metadata,
             ),
-            patch("posthog.temporal.session_replay.session_summary.summarize_session_group.get_async_client"),
+            patch(
+                "posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events.get_async_client"
+            ),
         ):
             result = await fetch_session_batch_events_activity(inputs)
 
@@ -2047,7 +2057,7 @@ class TestSessionBatchFetchExpectedSkips:
     @pytest.mark.asyncio
     async def test_all_sessions_can_be_expected_skips_without_error(self, ateam: Team, auser: User):
         """If all sessions are expected skips, the activity should complete without error."""
-        from posthog.temporal.session_replay.session_summary.types.group import SessionBatchFetchOutput
+        from posthog.temporal.session_replay.session_summary_group.types import SessionBatchFetchOutput
 
         # All sessions are too short
         session_ids = ["short-1", "short-2", "short-3"]
@@ -2074,7 +2084,9 @@ class TestSessionBatchFetchExpectedSkips:
                 "posthog.session_recordings.queries.session_replay_events.SessionReplayEvents.get_group_metadata",
                 return_value=mock_metadata,
             ),
-            patch("posthog.temporal.session_replay.session_summary.summarize_session_group.get_async_client"),
+            patch(
+                "posthog.temporal.session_replay.session_summary_group.activities.fetch_session_batch_events.get_async_client"
+            ),
         ):
             # Should NOT raise an error
             result = await fetch_session_batch_events_activity(inputs)

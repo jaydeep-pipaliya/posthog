@@ -9,7 +9,7 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from posthog.temporal.session_replay.replay_count_metrics.types import ReplayCountMetricsInput
-from posthog.temporal.session_replay.replay_count_metrics.workflows import ReplayCountMetricsWorkflow
+from posthog.temporal.session_replay.replay_count_metrics.workflow import ReplayCountMetricsWorkflow
 
 
 @pytest.mark.asyncio

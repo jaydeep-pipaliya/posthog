@@ -11,7 +11,7 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from posthog.temporal.common.search_attributes import POSTHOG_SESSION_RECORDING_ID_KEY, POSTHOG_TEAM_ID_KEY
-from posthog.temporal.session_replay.rasterize_recording.stuck_counter import BumpStuckCounterInput
+from posthog.temporal.session_replay.rasterize_recording.activities.stuck_counter import BumpStuckCounterInput
 from posthog.temporal.session_replay.rasterize_recording.types import (
     BuildRasterizationResult,
     FinalizeRasterizationInput,

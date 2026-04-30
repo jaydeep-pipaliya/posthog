@@ -56,12 +56,17 @@ def _patches(asset: MagicMock, head_object_return: dict | None = None):
             return False
 
     return (
-        patch("posthog.temporal.session_replay.rasterize_recording.activities.ExportedAsset.objects", mock_qs),
-        patch("posthog.temporal.session_replay.rasterize_recording.activities.settings", MOCK_SETTINGS),
-        patch("posthog.temporal.session_replay.rasterize_recording.activities.close_old_connections"),
-        patch("posthog.temporal.session_replay.rasterize_recording.activities.object_storage.head_object", head_mock),
         patch(
-            "posthog.temporal.session_replay.rasterize_recording.activities.transaction.atomic",
+            "posthog.temporal.session_replay.rasterize_recording.activities.rasterize.ExportedAsset.objects", mock_qs
+        ),
+        patch("posthog.temporal.session_replay.rasterize_recording.activities.rasterize.settings", MOCK_SETTINGS),
+        patch("posthog.temporal.session_replay.rasterize_recording.activities.rasterize.close_old_connections"),
+        patch(
+            "posthog.temporal.session_replay.rasterize_recording.activities.rasterize.object_storage.head_object",
+            head_mock,
+        ),
+        patch(
+            "posthog.temporal.session_replay.rasterize_recording.activities.rasterize.transaction.atomic",
             return_value=_NoopAtomic(),
         ),
     ), head_mock

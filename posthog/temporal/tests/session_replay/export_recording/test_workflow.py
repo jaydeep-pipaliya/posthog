@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from posthog.temporal.session_replay.export_recording.workflows import ExportRecordingWorkflow
+from posthog.temporal.session_replay.export_recording.workflow import ExportRecordingWorkflow
 
 
 def test_export_recording_workflow_parse_inputs():

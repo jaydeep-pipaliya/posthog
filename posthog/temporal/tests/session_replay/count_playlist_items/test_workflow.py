@@ -10,7 +10,7 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from posthog.temporal.session_replay.count_playlist_items.types import CountPlaylistInput, PlaylistInfo
-from posthog.temporal.session_replay.count_playlist_items.workflows import (
+from posthog.temporal.session_replay.count_playlist_items.workflow import (
     CountAllPlaylistsWorkflow,
     CountPlaylistWorkflow,
 )

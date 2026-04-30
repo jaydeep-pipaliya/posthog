@@ -5,7 +5,7 @@ import structlog
 import temporalio
 
 from posthog.sync import database_sync_to_async
-from posthog.temporal.session_replay.session_summary.events import capture_session_summary_ready
+from posthog.temporal.session_replay.session_summary.event_capture import capture_session_summary_ready
 from posthog.temporal.session_replay.session_summary.state import (
     StateActivitiesEnum,
     get_data_class_from_redis,
@@ -25,7 +25,7 @@ from ee.hogai.session_summaries.utils import (
     unpack_full_event_id,
 )
 
-from .a3_analyze_video_segment import _find_events_in_time_range
+from .a4_analyze_video_segment import _find_events_in_time_range
 
 logger = structlog.get_logger(__name__)
 

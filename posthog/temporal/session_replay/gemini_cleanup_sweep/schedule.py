@@ -14,7 +14,7 @@ from temporalio.common import SearchAttributePair, TypedSearchAttributes
 
 from posthog.temporal.common.schedule import a_create_schedule, a_schedule_exists, a_update_schedule
 from posthog.temporal.common.search_attributes import POSTHOG_SCHEDULE_TYPE_KEY
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.constants import (
+from posthog.temporal.session_replay.gemini_cleanup_sweep.constants import (
     SCHEDULE_ID,
     SCHEDULE_INTERVAL,
     SCHEDULE_TYPE,
@@ -22,10 +22,10 @@ from posthog.temporal.session_replay.session_summary.cleanup_sweep.constants imp
     WORKFLOW_ID,
     WORKFLOW_NAME,
 )
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.models import CleanupSweepInputs
+from posthog.temporal.session_replay.gemini_cleanup_sweep.types import CleanupSweepInputs
 
 
-async def create_cleanup_sweep_schedule(client: Client) -> None:
+async def create_gemini_cleanup_sweep_schedule(client: Client) -> None:
     schedule = Schedule(
         action=ScheduleActionStartWorkflow(
             WORKFLOW_NAME,

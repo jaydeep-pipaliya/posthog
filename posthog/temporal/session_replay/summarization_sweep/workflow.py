@@ -20,7 +20,7 @@ from posthog.temporal.session_replay.summarization_sweep.constants import (
     SESSION_LOOKBACK_MINUTES,
     WORKFLOW_NAME,
 )
-from posthog.temporal.session_replay.summarization_sweep.models import FindSessionsInput, SummarizeTeamSessionsInputs
+from posthog.temporal.session_replay.summarization_sweep.types import FindSessionsInput, SummarizeTeamSessionsInputs
 
 from ee.hogai.session_summaries.constants import DEFAULT_VIDEO_UNDERSTANDING_MODEL
 
@@ -28,8 +28,8 @@ from ee.hogai.session_summaries.constants import DEFAULT_VIDEO_UNDERSTANDING_MOD
 with workflow.unsafe.imports_passed_through():
     from django.conf import settings
 
-    from posthog.temporal.session_replay.session_summary.summarize_session import SummarizeSingleSessionWorkflow
-    from posthog.temporal.session_replay.session_summary.types.single import SingleSessionSummaryInputs
+    from posthog.temporal.session_replay.session_summary.types.inputs import SingleSessionSummaryInputs
+    from posthog.temporal.session_replay.session_summary.workflow import SummarizeSingleSessionWorkflow
     from posthog.temporal.session_replay.summarization_sweep.activities import find_sessions_for_team_activity
 
 

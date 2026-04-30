@@ -10,8 +10,13 @@ from posthog.temporal.common.search_attributes import POSTHOG_SESSION_RECORDING_
 with wf.unsafe.imports_passed_through():
     from django.conf import settings
 
-from .activities import build_rasterization_input, finalize_rasterization
-from .stuck_counter import BumpStuckCounterInput, bump_stuck_counter_activity, clear_stuck_counter_activity
+from .activities import (
+    BumpStuckCounterInput,
+    build_rasterization_input,
+    bump_stuck_counter_activity,
+    clear_stuck_counter_activity,
+    finalize_rasterization,
+)
 from .types import (
     BuildRasterizationResult,
     FinalizeRasterizationInput,

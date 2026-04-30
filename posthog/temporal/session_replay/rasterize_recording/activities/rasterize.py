@@ -7,7 +7,7 @@ from temporalio import activity
 from posthog.models.exported_asset import ExportedAsset
 from posthog.storage import object_storage
 
-from .types import (
+from ..types import (
     BuildRasterizationResult,
     FinalizeRasterizationInput,
     InactivityPeriod,

@@ -4,15 +4,15 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 from posthog.temporal.common.base import PostHogWorkflow
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.constants import (
+from posthog.temporal.session_replay.gemini_cleanup_sweep.constants import (
     SWEEP_ACTIVITY_HEARTBEAT_TIMEOUT,
     SWEEP_ACTIVITY_TIMEOUT,
     WORKFLOW_NAME,
 )
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.models import CleanupSweepInputs
+from posthog.temporal.session_replay.gemini_cleanup_sweep.types import CleanupSweepInputs
 
 with workflow.unsafe.imports_passed_through():
-    from posthog.temporal.session_replay.session_summary.cleanup_sweep.activities import sweep_gemini_files_activity
+    from posthog.temporal.session_replay.gemini_cleanup_sweep.activities import sweep_gemini_files_activity
 
 
 @workflow.defn(name=WORKFLOW_NAME)

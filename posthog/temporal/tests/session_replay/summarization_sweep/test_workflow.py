@@ -8,7 +8,7 @@ from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 
 from posthog.temporal.session_replay.summarization_sweep.constants import WORKFLOW_NAME
-from posthog.temporal.session_replay.summarization_sweep.models import (
+from posthog.temporal.session_replay.summarization_sweep.types import (
     FindSessionsInput,
     FindSessionsResult,
     SummarizeTeamSessionsInputs,

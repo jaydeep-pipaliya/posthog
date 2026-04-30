@@ -10,17 +10,16 @@ from temporalio.client import WorkflowExecutionStatus
 
 from posthog.models import Team
 from posthog.models.user import User
+from posthog.temporal.session_replay.session_summary.activities.event_based.fetch_session_data import (
+    fetch_session_data_activity,
+)
 from posthog.temporal.session_replay.session_summary.state import (
     StateActivitiesEnum,
     generate_state_key,
     get_data_class_from_redis,
 )
-from posthog.temporal.session_replay.session_summary.summarize_session import (
-    _set_phase,
-    execute_summarize_session_video_stream,
-    fetch_session_data_activity,
-)
-from posthog.temporal.session_replay.session_summary.types.single import SingleSessionProgress
+from posthog.temporal.session_replay.session_summary.types.inputs import SingleSessionProgress
+from posthog.temporal.session_replay.session_summary.workflow import _set_phase, execute_summarize_session_video_stream
 from posthog.temporal.tests.session_replay.session_summary.conftest import AsyncRedisTestContext
 
 from ee.hogai.session_summaries.session.summarize_session import SingleSessionSummaryLlmInputs
@@ -159,13 +158,11 @@ class TestExecuteSummarizeSessionVideoStream:
         cached_summary.summary = mock_enriched_llm_json_response
         with (
             patch.object(SingleSessionSummary.objects, "get_summary", return_value=cached_summary),
+            patch("posthog.temporal.session_replay.session_summary.workflow._prepare_execution") as mock_prepare,
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._prepare_execution"
-            ) as mock_prepare,
-            patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._start_video_summary_workflow"
+                "posthog.temporal.session_replay.session_summary.workflow._start_video_summary_workflow"
             ) as mock_start,
-            patch("posthog.temporal.session_replay.session_summary.summarize_session.async_connect") as mock_connect,
+            patch("posthog.temporal.session_replay.session_summary.workflow.async_connect") as mock_connect,
         ):
             events = await self._collect(
                 execute_summarize_session_video_stream(
@@ -228,19 +225,19 @@ class TestExecuteSummarizeSessionVideoStream:
         with (
             patch.object(SingleSessionSummary.objects, "get_summary", get_summary_mock),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._prepare_execution",
+                "posthog.temporal.session_replay.session_summary.workflow._prepare_execution",
                 return_value=(None, None, None, MagicMock(), "workflow-id"),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._start_video_summary_workflow",
+                "posthog.temporal.session_replay.session_summary.workflow._start_video_summary_workflow",
                 AsyncMock(return_value=handle),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.async_connect",
+                "posthog.temporal.session_replay.session_summary.workflow.async_connect",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.asyncio.sleep",
+                "posthog.temporal.session_replay.session_summary.workflow.asyncio.sleep",
                 AsyncMock(),
             ),
         ):
@@ -307,23 +304,23 @@ class TestExecuteSummarizeSessionVideoStream:
                 MagicMock(side_effect=[None, completed_summary]),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._prepare_execution",
+                "posthog.temporal.session_replay.session_summary.workflow._prepare_execution",
                 return_value=(None, None, None, MagicMock(), "workflow-id"),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._start_video_summary_workflow",
+                "posthog.temporal.session_replay.session_summary.workflow._start_video_summary_workflow",
                 AsyncMock(return_value=handle),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.async_connect",
+                "posthog.temporal.session_replay.session_summary.workflow.async_connect",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._get_rasterizer_frame_progress",
+                "posthog.temporal.session_replay.session_summary.workflow._get_rasterizer_frame_progress",
                 AsyncMock(return_value=rasterizer_progress),
             ) as mock_rasterizer_progress,
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.asyncio.sleep",
+                "posthog.temporal.session_replay.session_summary.workflow.asyncio.sleep",
                 AsyncMock(),
             ),
         ):
@@ -375,19 +372,19 @@ class TestExecuteSummarizeSessionVideoStream:
         with (
             patch.object(SingleSessionSummary.objects, "get_summary", MagicMock(return_value=None)),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._prepare_execution",
+                "posthog.temporal.session_replay.session_summary.workflow._prepare_execution",
                 return_value=(None, None, None, MagicMock(), "workflow-id"),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._start_video_summary_workflow",
+                "posthog.temporal.session_replay.session_summary.workflow._start_video_summary_workflow",
                 AsyncMock(return_value=handle),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.async_connect",
+                "posthog.temporal.session_replay.session_summary.workflow.async_connect",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.asyncio.sleep",
+                "posthog.temporal.session_replay.session_summary.workflow.asyncio.sleep",
                 AsyncMock(),
             ),
         ):
@@ -418,19 +415,19 @@ class TestExecuteSummarizeSessionVideoStream:
         with (
             patch.object(SingleSessionSummary.objects, "get_summary", MagicMock(return_value=None)),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._prepare_execution",
+                "posthog.temporal.session_replay.session_summary.workflow._prepare_execution",
                 return_value=(None, None, None, MagicMock(), "workflow-id"),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._start_video_summary_workflow",
+                "posthog.temporal.session_replay.session_summary.workflow._start_video_summary_workflow",
                 AsyncMock(return_value=handle),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.async_connect",
+                "posthog.temporal.session_replay.session_summary.workflow.async_connect",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.asyncio.sleep",
+                "posthog.temporal.session_replay.session_summary.workflow.asyncio.sleep",
                 AsyncMock(),
             ),
         ):
@@ -476,19 +473,19 @@ class TestExecuteSummarizeSessionVideoStream:
                 MagicMock(side_effect=[None, completed_summary]),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._prepare_execution",
+                "posthog.temporal.session_replay.session_summary.workflow._prepare_execution",
                 return_value=(None, None, None, MagicMock(), "workflow-id"),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session._start_video_summary_workflow",
+                "posthog.temporal.session_replay.session_summary.workflow._start_video_summary_workflow",
                 AsyncMock(return_value=handle),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.async_connect",
+                "posthog.temporal.session_replay.session_summary.workflow.async_connect",
                 AsyncMock(return_value=MagicMock()),
             ),
             patch(
-                "posthog.temporal.session_replay.session_summary.summarize_session.asyncio.sleep",
+                "posthog.temporal.session_replay.session_summary.workflow.asyncio.sleep",
                 AsyncMock(),
             ),
         ):

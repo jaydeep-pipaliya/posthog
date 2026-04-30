@@ -19,7 +19,7 @@ from posthog.temporal.session_replay.summarization_sweep.constants import (
     RECONCILER_WORKFLOW_NAME,
     UPSERT_SCHEDULE_TIMEOUT,
 )
-from posthog.temporal.session_replay.summarization_sweep.models import (
+from posthog.temporal.session_replay.summarization_sweep.types import (
     DeleteTeamScheduleInput,
     ReconcileSchedulesInputs,
     ReconcileSchedulesResult,

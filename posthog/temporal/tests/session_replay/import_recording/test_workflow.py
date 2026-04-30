@@ -1,4 +1,4 @@
-from posthog.temporal.session_replay.import_recording.workflows import ImportRecordingWorkflow
+from posthog.temporal.session_replay.import_recording.workflow import ImportRecordingWorkflow
 
 
 def test_import_recording_workflow_parse_inputs():

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 from temporalio.testing import ActivityEnvironment
 
-from posthog.temporal.session_replay.session_summary.activities.a2b_slice_session_data_for_segments import (
+from posthog.temporal.session_replay.session_summary.activities.video_based.a3_slice_session_data_for_segments import (
     slice_session_data_for_segments_activity,
 )
 from posthog.temporal.session_replay.session_summary.state import StateActivitiesEnum, generate_state_key
@@ -94,18 +94,18 @@ async def test_slice_writes_one_redis_key_per_segment_with_filtered_events():
     llm_input = _make_llm_input()
     with (
         patch(
-            "posthog.temporal.session_replay.session_summary.activities."
-            "a2b_slice_session_data_for_segments.get_redis_state_client",
+            "posthog.temporal.session_replay.session_summary.activities.video_based."
+            "a3_slice_session_data_for_segments.get_redis_state_client",
             return_value=(AsyncMock(), "test-base:session_db_data:sess-1", None),
         ),
         patch(
-            "posthog.temporal.session_replay.session_summary.activities."
-            "a2b_slice_session_data_for_segments.get_data_class_from_redis",
+            "posthog.temporal.session_replay.session_summary.activities.video_based."
+            "a3_slice_session_data_for_segments.get_data_class_from_redis",
             AsyncMock(return_value=llm_input),
         ),
         patch(
-            "posthog.temporal.session_replay.session_summary.activities."
-            "a2b_slice_session_data_for_segments.store_data_in_redis",
+            "posthog.temporal.session_replay.session_summary.activities.video_based."
+            "a3_slice_session_data_for_segments.store_data_in_redis",
             new=_store,
         ),
     ):
@@ -151,18 +151,18 @@ async def test_slice_reduces_url_and_window_maps_to_keys_present_in_slice():
     llm_input = _make_llm_input()
     with (
         patch(
-            "posthog.temporal.session_replay.session_summary.activities."
-            "a2b_slice_session_data_for_segments.get_redis_state_client",
+            "posthog.temporal.session_replay.session_summary.activities.video_based."
+            "a3_slice_session_data_for_segments.get_redis_state_client",
             return_value=(AsyncMock(), "test-base:session_db_data:sess-1", None),
         ),
         patch(
-            "posthog.temporal.session_replay.session_summary.activities."
-            "a2b_slice_session_data_for_segments.get_data_class_from_redis",
+            "posthog.temporal.session_replay.session_summary.activities.video_based."
+            "a3_slice_session_data_for_segments.get_data_class_from_redis",
             AsyncMock(return_value=llm_input),
         ),
         patch(
-            "posthog.temporal.session_replay.session_summary.activities."
-            "a2b_slice_session_data_for_segments.store_data_in_redis",
+            "posthog.temporal.session_replay.session_summary.activities.video_based."
+            "a3_slice_session_data_for_segments.store_data_in_redis",
             new=_store,
         ),
     ):

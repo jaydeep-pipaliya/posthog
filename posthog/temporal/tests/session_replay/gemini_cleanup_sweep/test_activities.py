@@ -8,9 +8,9 @@ from google.genai import types
 from temporalio.client import WorkflowExecutionStatus
 from temporalio.service import RPCError, RPCStatusCode
 
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.activities import sweep_gemini_files_activity
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.constants import AGE_THRESHOLD, MAX_FILES_PER_SWEEP
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.models import CleanupSweepInputs, CleanupSweepResult
+from posthog.temporal.session_replay.gemini_cleanup_sweep.activities import sweep_gemini_files_activity
+from posthog.temporal.session_replay.gemini_cleanup_sweep.constants import AGE_THRESHOLD, MAX_FILES_PER_SWEEP
+from posthog.temporal.session_replay.gemini_cleanup_sweep.types import CleanupSweepInputs, CleanupSweepResult
 
 _NOW = dt.datetime(2026, 4, 24, 12, 0, 0, tzinfo=dt.UTC)
 _DEPLOYMENT = "TEST"
@@ -89,7 +89,7 @@ def fixed_now():
             return _NOW if tz is None else _NOW.astimezone(tz)
 
     with patch(
-        "posthog.temporal.session_replay.session_summary.cleanup_sweep.activities.datetime",
+        "posthog.temporal.session_replay.gemini_cleanup_sweep.activities.datetime",
         _FixedDatetime,
     ):
         yield
@@ -98,11 +98,11 @@ def fixed_now():
 def _patch_clients(raw_client: _StubRawClient, temporal: _StubTemporal):
     return (
         patch(
-            "posthog.temporal.session_replay.session_summary.cleanup_sweep.activities.RawGenAIClient",
+            "posthog.temporal.session_replay.gemini_cleanup_sweep.activities.RawGenAIClient",
             return_value=raw_client,
         ),
         patch(
-            "posthog.temporal.session_replay.session_summary.cleanup_sweep.activities.async_connect",
+            "posthog.temporal.session_replay.gemini_cleanup_sweep.activities.async_connect",
             new=AsyncMock(return_value=temporal),
         ),
     )

@@ -5,7 +5,7 @@ from posthog.models.team import Team
 from posthog.models.user import User
 from posthog.redis import get_async_client
 from posthog.sync import database_sync_to_async, database_sync_to_async_pool
-from posthog.temporal.session_replay.rasterize_recording.stuck_counter import read_stuck_session_ids
+from posthog.temporal.session_replay.rasterize_recording.activities.stuck_counter import read_stuck_session_ids
 from posthog.temporal.session_replay.summarization_sweep.constants import (
     CH_QUERY_MAX_EXECUTION_SECONDS,
     SCHEDULE_ID_PREFIX,
@@ -13,13 +13,13 @@ from posthog.temporal.session_replay.summarization_sweep.constants import (
     STUCK_RASTERIZE_THRESHOLD,
     WORKFLOW_NAME,
 )
-from posthog.temporal.session_replay.summarization_sweep.models import (
+from posthog.temporal.session_replay.summarization_sweep.session_candidates import fetch_recent_session_ids
+from posthog.temporal.session_replay.summarization_sweep.types import (
     DeleteTeamScheduleInput,
     FindSessionsInput,
     FindSessionsResult,
     UpsertTeamScheduleInput,
 )
-from posthog.temporal.session_replay.summarization_sweep.session_candidates import fetch_recent_session_ids
 
 from products.signals.backend.models import SignalSourceConfig
 

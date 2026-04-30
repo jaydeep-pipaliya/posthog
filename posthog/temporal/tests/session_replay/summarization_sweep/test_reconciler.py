@@ -21,12 +21,12 @@ from posthog.temporal.session_replay.summarization_sweep.constants import (
     SCHEDULE_TYPE,
     WORKFLOW_NAME,
 )
-from posthog.temporal.session_replay.summarization_sweep.models import (
+from posthog.temporal.session_replay.summarization_sweep.reconciler import ReconcileSummarizationSchedulesWorkflow
+from posthog.temporal.session_replay.summarization_sweep.types import (
     DeleteTeamScheduleInput,
     ReconcileSchedulesInputs,
     UpsertTeamScheduleInput,
 )
-from posthog.temporal.session_replay.summarization_sweep.reconciler import ReconcileSummarizationSchedulesWorkflow
 
 from products.signals.backend.models import SignalSourceConfig
 
@@ -273,7 +273,7 @@ def test_reconcile_workflow_parse_inputs():
 def test_summarize_team_workflow_parse_inputs():
     import json
 
-    from posthog.temporal.session_replay.summarization_sweep.models import SummarizeTeamSessionsInputs
+    from posthog.temporal.session_replay.summarization_sweep.types import SummarizeTeamSessionsInputs
     from posthog.temporal.session_replay.summarization_sweep.workflow import SummarizeTeamSessionsWorkflow
 
     assert SummarizeTeamSessionsWorkflow.parse_inputs([json.dumps({"team_id": 42})]) == SummarizeTeamSessionsInputs(

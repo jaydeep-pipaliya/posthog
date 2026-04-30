@@ -1,6 +1,5 @@
 import json
 import asyncio
-import dataclasses
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 from typing import Any, cast
@@ -10,7 +9,6 @@ from django.conf import settings
 import structlog
 import temporalio
 import posthoganalytics
-from dateutil import parser as dateutil_parser
 from redis import Redis
 from temporalio.client import WorkflowExecutionStatus, WorkflowHandle
 from temporalio.common import RetryPolicy, SearchAttributePair, TypedSearchAttributes, WorkflowIDReusePolicy
@@ -27,10 +25,19 @@ from posthog.temporal.common.base import PostHogWorkflow
 from posthog.temporal.common.client import async_connect
 from posthog.temporal.common.search_attributes import POSTHOG_SESSION_RECORDING_ID_KEY, POSTHOG_TEAM_ID_KEY
 from posthog.temporal.session_replay.rasterize_recording.types import RasterizeRecordingInputs
-from posthog.temporal.session_replay.session_summary.activities import (
+from posthog.temporal.session_replay.session_summary.activities.capture_timing import (
     CaptureTimingInputs,
-    analyze_video_segment_activity,
     capture_timing_activity,
+)
+from posthog.temporal.session_replay.session_summary.activities.check_summary_exists import (
+    check_summary_exists_activity,
+)
+from posthog.temporal.session_replay.session_summary.activities.event_based import (
+    fetch_session_data_activity,
+    get_llm_single_session_summary_activity,
+)
+from posthog.temporal.session_replay.session_summary.activities.video_based import (
+    analyze_video_segment_activity,
     cleanup_gemini_file_activity,
     consolidate_video_segments_activity,
     embed_and_store_segments_activity,
@@ -41,14 +48,8 @@ from posthog.temporal.session_replay.session_summary.activities import (
     tag_and_highlight_session_activity,
     upload_video_to_gemini_activity,
 )
-from posthog.temporal.session_replay.session_summary.state import (
-    StateActivitiesEnum,
-    generate_state_key,
-    get_data_class_from_redis,
-    get_redis_state_client,
-    store_data_in_redis,
-)
-from posthog.temporal.session_replay.session_summary.types.single import (
+from posthog.temporal.session_replay.session_summary.state import StateActivitiesEnum, generate_state_key
+from posthog.temporal.session_replay.session_summary.types.inputs import (
     SingleSessionProgress,
     SingleSessionSummaryInputs,
 )
@@ -60,17 +61,9 @@ from posthog.temporal.session_replay.session_summary.types.video import (
 )
 
 from ee.hogai.session_summaries.constants import DEFAULT_VIDEO_UNDERSTANDING_MODEL, SESSION_SUMMARIES_MODEL
-from ee.hogai.session_summaries.llm.consume import get_exception_event_ids_from_summary, get_llm_single_session_summary
-from ee.hogai.session_summaries.session.output_data import SessionSummarySerializer
-from ee.hogai.session_summaries.session.summarize_session import (
-    ExtraSummaryContext,
-    SingleSessionSummaryLlmInputs,
-    get_session_data_from_db,
-    prepare_data_for_single_session_summary,
-    prepare_single_session_summary_input,
-)
+from ee.hogai.session_summaries.session.summarize_session import ExtraSummaryContext
 from ee.hogai.session_summaries.utils import serialize_to_sse_event
-from ee.models.session_summaries import SessionSummaryRunMeta, SingleSessionSummary
+from ee.models.session_summaries import SingleSessionSummary
 
 logger = structlog.get_logger(__name__)
 
@@ -106,177 +99,6 @@ def _set_phase(progress: SingleSessionProgress | None, phase: str) -> None:
     progress["phase"] = phase
     if phase in VIDEO_PHASE_INDEX:
         progress["step"] = VIDEO_PHASE_INDEX[phase]
-
-
-@temporalio.activity.defn
-async def check_summary_exists_activity(inputs: SingleSessionSummaryInputs) -> bool:
-    summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
-        team_id=inputs.team_id,
-        session_ids=[inputs.session_id],
-        extra_summary_context=inputs.extra_summary_context,
-    )
-    return bool(summary_exists.get(inputs.session_id))
-
-
-@temporalio.activity.defn
-async def fetch_session_data_activity(inputs: SingleSessionSummaryInputs) -> bool:
-    """Returns False if the session has no events (static); True otherwise."""
-    redis_client, redis_input_key, _ = get_redis_state_client(
-        key_base=inputs.redis_key_base,
-        input_label=StateActivitiesEnum.SESSION_DB_DATA,
-        state_id=inputs.session_id,
-    )
-    success = await get_data_class_from_redis(
-        redis_client=redis_client,
-        redis_key=redis_input_key,
-        label=StateActivitiesEnum.SESSION_DB_DATA,
-        target_class=SingleSessionSummaryLlmInputs,
-    )
-    # Return if the data is properly cached
-    if success is not None:
-        return True
-    # If not yet, or TTL expired - fetch data from DB
-    session_db_data = await get_session_data_from_db(
-        session_id=inputs.session_id,
-        team_id=inputs.team_id,
-        local_reads_prod=inputs.local_reads_prod,
-    )
-    if not session_db_data.session_events or not session_db_data.session_events_columns:
-        return False  # Recording has no associated events, so it's probably static - let's skip this the session
-    summary_data = await prepare_data_for_single_session_summary(
-        session_id=inputs.session_id,
-        user_id=inputs.user_id,
-        session_db_data=session_db_data,
-        extra_summary_context=inputs.extra_summary_context,
-    )
-    input_data = prepare_single_session_summary_input(
-        session_id=inputs.session_id,
-        user_id=inputs.user_id,
-        user_distinct_id_to_log=inputs.user_distinct_id_to_log,
-        summary_data=summary_data,
-        model_to_use=inputs.model_to_use,
-        trigger_session_id=inputs.trigger_session_id,
-    )
-    # Store the input in Redis
-    input_data_str = json.dumps(dataclasses.asdict(input_data))
-    await store_data_in_redis(
-        redis_client=redis_client,
-        redis_key=redis_input_key,
-        data=input_data_str,
-        label=StateActivitiesEnum.SESSION_DB_DATA,
-    )
-    # Nothing to return if the fetch was successful, as the data is stored in Redis
-    return True
-
-
-def _store_final_summary_in_db_from_activity(
-    inputs: SingleSessionSummaryInputs,
-    session_summary: SessionSummarySerializer,
-    llm_input: SingleSessionSummaryLlmInputs,
-) -> None:
-    """Store the final summary in the DB from the activity"""
-    exception_event_ids = get_exception_event_ids_from_summary(session_summary)
-    # Getting the user explicitly from the DB as we can't pass models between activities
-    user = User.objects.get(id=inputs.user_id)
-    if not user:
-        msg = f"User with id {inputs.user_id} not found, when trying to add session summary for session {inputs.session_id}"
-        temporalio.activity.logger.error(
-            msg,
-            extra={
-                "user_id": inputs.user_id,
-                "session_id": inputs.session_id,
-                "signals_type": "session-summaries",
-            },
-        )
-        raise ValueError(msg)
-    # Disable thread-sensitive as the summary could be pretty heavy and it's a write
-    SingleSessionSummary.objects.add_summary(
-        session_id=inputs.session_id,
-        team_id=inputs.team_id,
-        summary=session_summary,
-        exception_event_ids=exception_event_ids,
-        extra_summary_context=inputs.extra_summary_context,
-        run_metadata=SessionSummaryRunMeta(
-            model_used=inputs.model_to_use,
-            visual_confirmation=False,
-        ),
-        session_start_time=dateutil_parser.isoparse(llm_input.session_start_time_str),
-        session_duration=llm_input.session_duration,
-        distinct_id=llm_input.distinct_id,
-        created_by=user,
-    )
-
-
-@temporalio.activity.defn
-async def get_llm_single_session_summary_activity(
-    inputs: SingleSessionSummaryInputs,
-) -> None:
-    """Summarize a single session via LLM. Caches inputs/outputs in Redis to avoid Temporal payload limits."""
-    # Re-check at the LLM-call boundary: the group-summary path uses a different
-    # workflow id namespace from SummarizeSingleSessionWorkflow, so summaries can
-    # land between the workflow-entry guard and this activity.
-    summary_exists = await database_sync_to_async(SingleSessionSummary.objects.summaries_exist)(
-        team_id=inputs.team_id,
-        session_ids=[inputs.session_id],
-        extra_summary_context=inputs.extra_summary_context,
-    )
-    if summary_exists.get(inputs.session_id):
-        return None
-    redis_client, redis_input_key, _ = get_redis_state_client(
-        key_base=inputs.redis_key_base,
-        input_label=StateActivitiesEnum.SESSION_DB_DATA,
-        state_id=inputs.session_id,
-    )
-    # If not yet - generate the summary with LLM
-    llm_input_raw = await get_data_class_from_redis(
-        redis_client=redis_client,
-        redis_key=redis_input_key,
-        label=StateActivitiesEnum.SESSION_DB_DATA,
-        target_class=SingleSessionSummaryLlmInputs,
-    )
-    if llm_input_raw is None:
-        # No reason to retry activity, as the input data is not in Redis
-        msg = f"No LLM input found for session {inputs.session_id} when summarizing"
-        temporalio.activity.logger.error(
-            msg,
-            extra={
-                "session_id": inputs.session_id,
-                "signals_type": "session-summaries",
-            },
-        )
-        raise ApplicationError(msg, non_retryable=True)
-    llm_input = cast(
-        SingleSessionSummaryLlmInputs,
-        llm_input_raw,
-    )
-    # Get summary from LLM
-    session_summary = await get_llm_single_session_summary(
-        session_id=llm_input.session_id,
-        user_id=llm_input.user_id,
-        model_to_use=llm_input.model_to_use,
-        # Prompt
-        summary_prompt=llm_input.summary_prompt,
-        system_prompt=llm_input.system_prompt,
-        # Mappings to enrich events
-        allowed_event_ids=list(llm_input.simplified_events_mapping.keys()),
-        simplified_events_mapping=llm_input.simplified_events_mapping,
-        event_ids_mapping=llm_input.event_ids_mapping,
-        simplified_events_columns=llm_input.simplified_events_columns,
-        url_mapping_reversed=llm_input.url_mapping_reversed,
-        window_mapping_reversed=llm_input.window_mapping_reversed,
-        # Session metadata
-        session_start_time_str=llm_input.session_start_time_str,
-        session_duration=llm_input.session_duration,
-        trace_id=temporalio.activity.info().workflow_id,
-        user_distinct_id=llm_input.user_distinct_id_to_log,
-        trigger_session_id=llm_input.trigger_session_id,
-    )
-    # Store the final summary in the DB
-    await database_sync_to_async(_store_final_summary_in_db_from_activity, thread_sensitive=False)(
-        inputs, session_summary, llm_input
-    )
-    # Returning nothing as output is stored in Redis + Postgres
-    return None
 
 
 @temporalio.workflow.defn(name="summarize-session")

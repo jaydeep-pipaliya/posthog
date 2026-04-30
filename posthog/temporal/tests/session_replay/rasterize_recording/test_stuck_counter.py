@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from posthog.temporal.session_replay.rasterize_recording.stuck_counter import (
+from posthog.temporal.session_replay.rasterize_recording.activities.stuck_counter import (
     _STUCK_TTL_SECONDS,
     BumpStuckCounterInput,
     bump_stuck_counter_activity,
@@ -21,7 +21,7 @@ async def test_bump_stuck_counter_pipelines_incr_and_expire():
     redis_client.pipeline = MagicMock(return_value=pipeline)
 
     with patch(
-        "posthog.temporal.session_replay.rasterize_recording.stuck_counter.get_async_client",
+        "posthog.temporal.session_replay.rasterize_recording.activities.stuck_counter.get_async_client",
         return_value=redis_client,
     ):
         await bump_stuck_counter_activity(BumpStuckCounterInput(team_id=42, session_id="abc"))

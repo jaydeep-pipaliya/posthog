@@ -6,7 +6,7 @@ from asgiref.sync import sync_to_async
 from posthog.models.organization import Organization
 from posthog.models.team import Team
 from posthog.temporal.session_replay.summarization_sweep.activities import find_sessions_for_team_activity
-from posthog.temporal.session_replay.summarization_sweep.models import FindSessionsInput
+from posthog.temporal.session_replay.summarization_sweep.types import FindSessionsInput
 
 from products.signals.backend.models import SignalSourceConfig
 

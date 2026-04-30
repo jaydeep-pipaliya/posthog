@@ -22,7 +22,7 @@ from posthog.temporal.session_replay.session_summary.state import (
     get_redis_state_client,
     store_data_in_redis,
 )
-from posthog.temporal.session_replay.session_summary.types.group import (
+from posthog.temporal.session_replay.session_summary_group.types import (
     SessionGroupSummaryOfSummariesInputs,
     SessionGroupSummaryPatternsExtractionChunksInputs,
 )

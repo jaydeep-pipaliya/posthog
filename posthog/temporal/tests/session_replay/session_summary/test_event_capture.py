@@ -5,7 +5,7 @@ from pytest_mock import MockerFixture
 from requests import HTTPError, Response
 
 from posthog.sync import database_sync_to_async
-from posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary import (
+from posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary import (
     store_video_session_summary_activity,
 )
 from posthog.temporal.session_replay.session_summary.types.video import (
@@ -42,10 +42,10 @@ def test_capture_session_summary_ready_emits_internal_project_event(
     settings.SITE_URL = "http://localhost:8000"
     response = mocker.MagicMock()
     capture_internal = mocker.patch(
-        "posthog.temporal.session_replay.session_summary.events.capture_internal", return_value=response
+        "posthog.temporal.session_replay.session_summary.event_capture.capture_internal", return_value=response
     )
 
-    from posthog.temporal.session_replay.session_summary.events import capture_session_summary_ready
+    from posthog.temporal.session_replay.session_summary.event_capture import capture_session_summary_ready
 
     capture_session_summary_ready(summary, team_api_token="token-override")
 
@@ -85,10 +85,12 @@ def test_capture_session_summary_ready_swallow_capture_errors(
     )
     response = mocker.MagicMock()
     response.raise_for_status.side_effect = HTTPError("boom", response=Response())
-    mocker.patch("posthog.temporal.session_replay.session_summary.events.capture_internal", return_value=response)
-    logger = mocker.patch("posthog.temporal.session_replay.session_summary.events.logger")
+    mocker.patch(
+        "posthog.temporal.session_replay.session_summary.event_capture.capture_internal", return_value=response
+    )
+    logger = mocker.patch("posthog.temporal.session_replay.session_summary.event_capture.logger")
 
-    from posthog.temporal.session_replay.session_summary.events import capture_session_summary_ready
+    from posthog.temporal.session_replay.session_summary.event_capture import capture_session_summary_ready
 
     capture_session_summary_ready(summary, team_api_token=team.api_token)
 
@@ -108,20 +110,20 @@ async def test_store_video_session_summary_activity_emits_summary_ready_event(
     llm_input.distinct_id = "video-customer-123"
 
     mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary.get_redis_state_client",
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary.get_redis_state_client",
         return_value=(None, "input-key", None),
     )
     mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary.get_data_class_from_redis",
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary.get_data_class_from_redis",
         return_value=llm_input,
     )
     mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary._convert_video_segments_to_session_summary",
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary._convert_video_segments_to_session_summary",
         return_value=mock_session_summary_serializer.data,
     )
 
     capture_session_summary_ready = mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary.capture_session_summary_ready"
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary.capture_session_summary_ready"
     )
 
     inputs = VideoSummarySingleSessionInputs(
@@ -179,13 +181,13 @@ async def test_store_video_session_summary_activity_does_not_emit_existing_summa
     )
 
     capture_session_summary_ready = mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary.capture_session_summary_ready"
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary.capture_session_summary_ready"
     )
     get_data_class_from_redis = mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary.get_data_class_from_redis"
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary.get_data_class_from_redis"
     )
     logger = mocker.patch(
-        "posthog.temporal.session_replay.session_summary.activities.a5c_store_video_session_summary.logger"
+        "posthog.temporal.session_replay.session_summary.activities.video_based.a6c_store_video_session_summary.logger"
     )
 
     inputs = VideoSummarySingleSessionInputs(

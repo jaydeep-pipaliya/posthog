@@ -23,7 +23,7 @@ from posthog.temporal.session_replay.delete_recordings.types import (
     RecordingsWithSessionIdsInput,
     RecordingsWithTeamInput,
 )
-from posthog.temporal.session_replay.delete_recordings.workflows import (
+from posthog.temporal.session_replay.delete_recordings.workflow import (
     DeleteRecordingsWithPersonWorkflow,
     DeleteRecordingsWithQueryWorkflow,
     DeleteRecordingsWithSessionIdsWorkflow,
@@ -570,7 +570,7 @@ async def test_rate_limiting_sleeps_when_execution_is_fast(num_sessions, max_per
             activities=[load_mocked, delete_mocked],
             workflow_runner=temporalio.worker.UnsandboxedWorkflowRunner(),
         ):
-            with patch("posthog.temporal.session_replay.delete_recordings.workflows.asyncio.sleep", mock_sleep):
+            with patch("posthog.temporal.session_replay.delete_recordings.workflow.asyncio.sleep", mock_sleep):
                 await env.client.execute_workflow(
                     DeleteRecordingsWithTeamWorkflow.run,
                     RecordingsWithTeamInput(
@@ -611,7 +611,7 @@ async def test_rate_limiting_disabled_when_zero():
             activities=[load_mocked, delete_mocked],
             workflow_runner=temporalio.worker.UnsandboxedWorkflowRunner(),
         ):
-            with patch("posthog.temporal.session_replay.delete_recordings.workflows.asyncio.sleep", mock_sleep):
+            with patch("posthog.temporal.session_replay.delete_recordings.workflow.asyncio.sleep", mock_sleep):
                 await env.client.execute_workflow(
                     DeleteRecordingsWithTeamWorkflow.run,
                     RecordingsWithTeamInput(

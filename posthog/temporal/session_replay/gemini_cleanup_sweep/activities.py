@@ -15,7 +15,7 @@ from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.service import RPCError, RPCStatusCode
 
 from posthog.temporal.common.client import async_connect
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.constants import (
+from posthog.temporal.session_replay.gemini_cleanup_sweep.constants import (
     AGE_THRESHOLD,
     DELETE_CONCURRENCY,
     DESCRIBE_CONCURRENCY,
@@ -23,7 +23,7 @@ from posthog.temporal.session_replay.session_summary.cleanup_sweep.constants imp
     MAX_FILES_PER_SWEEP,
     display_name_prefix_for,
 )
-from posthog.temporal.session_replay.session_summary.cleanup_sweep.models import CleanupSweepInputs, CleanupSweepResult
+from posthog.temporal.session_replay.gemini_cleanup_sweep.types import CleanupSweepInputs, CleanupSweepResult
 
 logger = structlog.get_logger(__name__)
 
