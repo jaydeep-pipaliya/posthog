@@ -171,6 +171,7 @@ export type SettingId =
     | 'connected-apps'
     | 'personal-api-keys'
     | 'notifications'
+    | 'realtime-notifications'
     | 'feature-previews'
     | 'feature-previews-coming-soon'
     | 'optout'
