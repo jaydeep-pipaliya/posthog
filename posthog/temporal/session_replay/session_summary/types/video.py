@@ -1,4 +1,4 @@
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -86,6 +86,33 @@ class VideoSegmentSpec(BaseModel):
         if self.recording_end_time <= self.recording_start_time:
             raise ValueError("recording_end_time must be greater than recording_start_time")
         return self
+
+
+class SegmentEventEntry(BaseModel):
+    """One event in a segment slice. (event_id, event_data)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    event_id: str
+    data: list[Any]
+
+
+class SegmentLlmContext(BaseModel):
+    """Slim per-segment slice of LlmInputs written by slice_session_data_for_segments_activity.
+
+    Carries only what analyze_video_segment_activity needs for its segment:
+    the events that fall inside the segment's time range, plus the URL/window
+    mappings reduced to the keys actually referenced. Avoids each segment
+    activity loading and iterating the full session blob.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    events: list[SegmentEventEntry]
+    simplified_events_columns: list[str]
+    url_mapping_reversed: dict[str, str]
+    window_mapping_reversed: dict[str, str]
+    session_start_time_str: str
 
 
 class VideoSegmentOutput(BaseModel):

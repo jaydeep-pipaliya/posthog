@@ -1,5 +1,6 @@
 from .a1_prep_session_video_asset import prep_session_video_asset_activity
 from .a2_upload_video_to_gemini import upload_video_to_gemini_activity
+from .a2b_slice_session_data_for_segments import slice_session_data_for_segments_activity
 from .a3_analyze_video_segment import analyze_video_segment_activity
 from .a4_consolidate_video_segments import consolidate_video_segments_activity
 from .a5a_embed_and_store_segments import embed_and_store_segments_activity
@@ -13,6 +14,7 @@ __all__ = [
     "CaptureTimingInputs",
     "prep_session_video_asset_activity",
     "upload_video_to_gemini_activity",
+    "slice_session_data_for_segments_activity",
     "analyze_video_segment_activity",
     "consolidate_video_segments_activity",
     "embed_and_store_segments_activity",

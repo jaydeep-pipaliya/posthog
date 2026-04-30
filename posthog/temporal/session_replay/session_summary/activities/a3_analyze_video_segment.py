@@ -17,10 +17,12 @@ from temporalio.exceptions import ApplicationError
 
 from posthog.temporal.session_replay.session_summary.state import (
     StateActivitiesEnum,
+    generate_state_key,
     get_data_class_from_redis,
     get_redis_state_client,
 )
 from posthog.temporal.session_replay.session_summary.types.video import (
+    SegmentLlmContext,
     UploadedVideo,
     VideoSegmentOutput,
     VideoSegmentSpec,
@@ -28,7 +30,6 @@ from posthog.temporal.session_replay.session_summary.types.video import (
 )
 from posthog.temporal.session_replay.session_summary.utils import format_seconds_as_mm_ss, parse_str_timestamp_to_s
 
-from ee.hogai.session_summaries.session.summarize_session import SingleSessionSummaryLlmInputs
 from ee.hogai.session_summaries.utils import calculate_time_since_start, get_column_index, prepare_datetime
 
 
@@ -44,8 +45,7 @@ async def analyze_video_segment_activity(
     Returns detailed descriptions of salient moments in the segment.
     """
     try:
-        # Retrieve cached event data from Redis (populated by fetch_session_data_activity)
-        llm_input: SingleSessionSummaryLlmInputs | None = None
+        # Retrieve the per-segment slice cached by slice_session_data_for_segments_activity.
         events_context = ""
         if not inputs.redis_key_base:
             msg = "No Redis key base provided when analyzing video segment"
@@ -59,42 +59,34 @@ async def analyze_video_segment_activity(
             )
             # No need to retry, if the input is missing critical data, so it failed way before
             raise ApplicationError(msg, non_retryable=True)
-        redis_client, redis_input_key, _ = get_redis_state_client(
+        redis_client, _, _ = get_redis_state_client(key_base=inputs.redis_key_base)
+        segment_state_id = f"{inputs.session_id}:{segment.segment_index}"
+        segment_key = generate_state_key(
             key_base=inputs.redis_key_base,
-            input_label=StateActivitiesEnum.SESSION_DB_DATA,
-            state_id=inputs.session_id,
+            label=StateActivitiesEnum.SEGMENT_LLM_CONTEXT,
+            state_id=segment_state_id,
         )
-        llm_input_raw = await get_data_class_from_redis(
+        segment_context_raw = await get_data_class_from_redis(
             redis_client=redis_client,
-            redis_key=redis_input_key,
-            label=StateActivitiesEnum.SESSION_DB_DATA,
-            target_class=SingleSessionSummaryLlmInputs,
+            redis_key=segment_key,
+            label=StateActivitiesEnum.SEGMENT_LLM_CONTEXT,
+            target_class=SegmentLlmContext,
         )
-        if llm_input_raw:
-            llm_input = cast(SingleSessionSummaryLlmInputs, llm_input_raw)
-            # Find events within this segment's time range, using session time, not video time
-            start_ms = int(segment.start_time * 1000)
-            end_ms = int(segment.end_time * 1000)
-            events_in_range = _find_events_in_time_range(
-                start_ms=start_ms,
-                end_ms=end_ms,
-                simplified_events_mapping=llm_input.simplified_events_mapping,
-                simplified_events_columns=llm_input.simplified_events_columns,
-                session_start_time_str=llm_input.session_start_time_str,
-            )
-            if events_in_range:
+        if segment_context_raw:
+            segment_context = cast(SegmentLlmContext, segment_context_raw)
+            if segment_context.events:
                 events_context = _format_events_for_prompt(
-                    events_in_range=events_in_range,
-                    simplified_events_columns=llm_input.simplified_events_columns,
-                    url_mapping_reversed=llm_input.url_mapping_reversed,
-                    window_mapping_reversed=llm_input.window_mapping_reversed,
+                    events=[(entry.event_id, entry.data) for entry in segment_context.events],
+                    simplified_events_columns=segment_context.simplified_events_columns,
+                    url_mapping_reversed=segment_context.url_mapping_reversed,
+                    window_mapping_reversed=segment_context.window_mapping_reversed,
                 )
                 temporalio.activity.logger.debug(
-                    f"Found {len(events_in_range)} events in segment {segment.segment_index} time range",
+                    f"Found {len(segment_context.events)} events in segment {segment.segment_index} time range",
                     extra={
                         "session_id": inputs.session_id,
                         "segment_index": segment.segment_index,
-                        "event_count": len(events_in_range),
+                        "event_count": len(segment_context.events),
                         "signals_type": "session-summaries",
                     },
                 )
@@ -292,13 +284,13 @@ Events data (in chronological order):
 
 
 def _format_events_for_prompt(
-    events_in_range: list[tuple[str, list[Any]]],
+    events: list[tuple[str, list[Any]]],
     simplified_events_columns: list[str],
     url_mapping_reversed: dict[str, str],
     window_mapping_reversed: dict[str, str],
 ) -> str:
     """Format events data for inclusion in the video analysis prompt"""
-    if not events_in_range:
+    if not events:
         return "No tracked events occurred during this segment."
 
     # Build a simplified view of events for the prompt
@@ -325,7 +317,7 @@ def _format_events_for_prompt(
 
     # Format events
     formatted_events = []
-    for event_id, event_data in events_in_range:
+    for event_id, event_data in events:
         event_info: dict[str, Any] = {"event_id": event_id}
         for col in key_columns:
             idx = column_indices.get(col)

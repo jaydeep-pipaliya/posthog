@@ -36,6 +36,7 @@ from posthog.temporal.session_replay.session_summary.activities import (
     embed_and_store_segments_activity,
     emit_session_problem_signals_activity,
     prep_session_video_asset_activity,
+    slice_session_data_for_segments_activity,
     store_video_session_summary_activity,
     tag_and_highlight_session_activity,
     upload_video_to_gemini_activity,
@@ -588,6 +589,15 @@ async def ensure_llm_single_session_summary(
         chunk_duration=SESSION_VIDEO_CHUNK_DURATION_S,
         inputs=inputs,
         inactivity_periods=inactivity_periods,
+    )
+
+    # a2b: pre-slice the cached LlmInputs into per-segment Redis keys so a3
+    # doesn't load and iterate the full session blob N times in parallel.
+    await temporalio.workflow.execute_activity(
+        slice_session_data_for_segments_activity,
+        args=(video_inputs, segment_specs),
+        start_to_close_timeout=timedelta(minutes=2),
+        retry_policy=retry_policy,
     )
 
     # a6 (cleanup) must run even if a3-a5 fail
