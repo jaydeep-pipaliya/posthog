@@ -488,10 +488,11 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
             start_event_data_ref = ast.Field(chain=["_start_event_data"])
             return_event_data_ref = ast.Field(chain=["_return_event_data"])
 
-            # When start and return events are different event types, return events that occur
-            # strictly after the start event within interval 0 are counted for that interval.
-            # When they are the same event type, start_data already captures all occurrences in
-            # interval 0; allowing return_data to also contribute would double-count.
+            # When start and return events are different, aggregation values should come from the
+            # return events only. Start events still add a zero-valued interval-0 marker so the
+            # cohort count stays consistent with normal retention.
+            # When they are the same event, start_data captures the interval-0 value and
+            # return_data contributes only later intervals to avoid double-counting.
             different_event_entities = (
                 self.start_event.id != self.return_event.id or self.start_event.type != self.return_event.type
             )
@@ -505,7 +506,7 @@ class RetentionFixedIntervalBaseQueryBuilder(RetentionBaseQueryBuilder):
                         arrayFilter(
                             x -> x.1 >= 0,
                             arrayMap(
-                                item -> (toInt(if(item.1 = date_range[start_interval_index + 1], 0, -1)), item.2),
+                                item -> (toInt(if(item.1 = date_range[start_interval_index + 1], 0, -1)), 0.0),
                                 {start_data}
                             )
                         ),
