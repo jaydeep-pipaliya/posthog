@@ -30,7 +30,7 @@ import { buildInstructionsV1, buildInstructionsV2, type QueryToolInfo } from '@/
 import { initMcpCatObservability } from '@/lib/mcpcat'
 import { SessionManager } from '@/lib/SessionManager'
 import { StateManager } from '@/lib/StateManager'
-import { formatPrompt, type McpMode, sanitizeHeaderValue } from '@/lib/utils'
+import { formatPrompt, sanitizeHeaderValue } from '@/lib/utils'
 import { registerPrompts } from '@/prompts'
 import { registerResources } from '@/resources'
 import { registerUiAppResources } from '@/resources/ui-apps'
@@ -43,27 +43,9 @@ import SINGLE_EXEC_INSTRUCTIONS from '@/templates/single-exec-instructions.md'
 import { createExecTool, type ExecInnerCallTracker } from '@/tools/exec'
 import { getToolDefinition } from '@/tools/toolDefinitions'
 import { type CloudRegion, type Context, type State, type Tool } from '@/tools/types'
+import { type RequestProperties } from '@/lib/request-properties'
 
-export type RequestProperties = {
-    userHash: string
-    apiToken: string
-    sessionId?: string
-    features?: string[]
-    tools?: string[]
-    region?: string
-    version?: number
-    organizationId?: string
-    projectId?: string
-    clientUserAgent?: string
-    mcpConsumer?: string
-    mcpClientName?: string
-    mcpClientVersion?: string
-    mcpProtocolVersion?: string
-    readOnly?: boolean
-    mode?: McpMode
-    transport?: 'streamable-http' | 'sse'
-    requestStartTime?: number
-}
+export type { RequestProperties }
 
 export class MCP extends McpAgent<Env> {
     server = new McpServer({ name: 'PostHog', version: '1.0.0' }, { instructions: INSTRUCTIONS_TEMPLATE_V1 })
