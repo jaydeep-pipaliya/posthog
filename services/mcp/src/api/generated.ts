@@ -37599,6 +37599,10 @@ export namespace Schemas {
      * The initial index from which to return the results.
      */
     offset?: number;
+    /**
+     * Optional. Fuzzy full-text search across `name` and `description`. Combines weighted Postgres full-text search (name weight A, description weight C, with prefix-as-you-type matching on the last token) with trigram similarity on `name` (handles typos and transpositions). Results are ordered by relevance score, then pinned status, then name. When omitted, dashboards are ordered by pinned status then alphabetical name.
+     */
+    search?: string;
     };
 
     export type EnvironmentsDashboardsListFormat = typeof EnvironmentsDashboardsListFormat[keyof typeof EnvironmentsDashboardsListFormat];
@@ -41668,6 +41672,10 @@ export namespace Schemas {
      * The initial index from which to return the results.
      */
     offset?: number;
+    /**
+     * Optional. Fuzzy full-text search across `name` and `description`. Combines weighted Postgres full-text search (name weight A, description weight C, with prefix-as-you-type matching on the last token) with trigram similarity on `name` (handles typos and transpositions). Results are ordered by relevance score, then pinned status, then name. When omitted, dashboards are ordered by pinned status then alphabetical name.
+     */
+    search?: string;
     };
 
     export type DashboardsListFormat = typeof DashboardsListFormat[keyof typeof DashboardsListFormat];
